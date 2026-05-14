@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pola — Critical Bandwidth Analysis</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ======== Header ======== -->
+<header class="header">
+  <div class="header-inner">
+    <div>
+      <span class="header-title">pola</span>
+      <span class="header-version" id="version-badge">v?</span>
+    </div>
+    <div class="header-status" id="status-bar">
+      <span class="status-dot loading" id="status-dot"></span>
+      <span id="status-text">Initializing Pyodide…</span>
+    </div>
+  </div>
+</header>
+
+<!-- ======== Tab Navigation ======== -->
+<nav class="tabs" id="tab-nav">
+  <button class="tab-btn active" data-tab="input">Input</button>
+  <button class="tab-btn" data-tab="results" id="results-tab-btn" disabled>Results</button>
+  <button class="tab-btn" data-tab="benchmarks">Benchmarks</button>
+  <button class="tab-btn" data-tab="info">About</button>
+</nav>
+
+<!-- ======== Main Content ======== -->
+<main class="main">
+
+  <!-- ---- Loading Overlay ---- -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Loading Pyodide Python runtime…</div>
+    <div class="loading-progress" id="load-progress">Downloading packages (12–18 MB first load)</div>
+  </div>
+
+  <!-- ====== Tab: Input ====== -->
+  <div class="tab-content active" id="tab-input">
+    <div class="card">
+      <div class="card-title">Data Input</div>
+
+      <!-- File Drop Zone -->
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-zone-icon">&#128196;</div>
+        <div class="drop-zone-text">Drop a data file here, or click to browse</div>
+        <div class="drop-zone-hint">Supports CSV, TSV, JSON, XLSX, XLS, PDF, DOCX, HTML, Markdown</div>
+      </div>
+      <input type="file" id="file-input" accept=".csv,.tsv,.txt,.json,.xlsx,.xls,.pdf,.docx,.html,.htm,.md" style="display:none">
+
+      <div style="text-align:center;margin:12px 0;color:var(--color-text-secondary);font-size:0.85rem;">— or paste data inline —</div>
+
+      <!-- Textarea Input -->
+      <textarea class="data-input" id="data-input" placeholder="Paste comma, space, or newline-separated numbers here.&#10;Example: 1.2, 2.3, 3.4, 4.5, 5.6"></textarea>
+    </div>
+
+    <!-- Parameters -->
+    <div class="card">
+      <div class="card-title">Parameters</div>
+      <div class="params-grid">
+        <div class="param-group">
+          <label class="param-label" for="param-kernel">Kernel</label>
+          <select class="param-select" id="param-kernel">
+            <option value="gaussian">Gaussian</option>
+            <option value="epanechnikov">Epanechnikov</option>
+            <option value="uniform">Uniform</option>
+            <option value="triangular">Triangular</option>
+          </select>
+        </div>
+        <div class="param-group">
+          <label class="param-label" for="param-method">Search Method</label>
+          <select class="param-select" id="param-method">
+            <option value="auto">Auto (hybrid)</option>
+            <option value="binary">Binary</option>
+            <option value="brent">Brent</option>
+          </select>
+        </div>
+        <div class="param-group">
+          <label class="param-label" for="param-hfactor">h Factor</label>
+          <input class="param-input" id="param-hfactor" type="number" value="0.85" min="0.1" max="2" step="0.05">
+        </div>
+        <div class="param-group">
+          <label class="param-label" for="param-bootstrap">Bootstrap N</label>
+          <input class="param-input" id="param-bootstrap" type="number" value="99" min="10" max="999" step="10">
+        </div>
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="param-show-plots" checked>
+        <label for="param-show-plots">Show plots (requires matplotlib)</label>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-analyze-cb" disabled>Analyze Critical Bandwidth</button>
+        <button class="btn btn-primary" id="btn-analyze-full" disabled>Full Analysis</button>
+        <button class="btn btn-secondary" id="btn-bootstrap" disabled>Bootstrap</button>
+      </div>
+    </div>
+
+    <!-- Quick Sample -->
+    <div class="card">
+      <div class="card-title">Quick Sample</div>
+      <div style="font-size:0.85rem;color:var(--color-text-secondary);margin-bottom:8px;">
+        Load a pre-built test dataset to try the tool:
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="app.loadQuickSample('well_separated')">Well-Separated Bimodal</button>
+        <button class="btn btn-secondary" onclick="app.loadQuickSample('barely_separated')">Barely Separated</button>
+        <button class="btn btn-secondary" onclick="app.loadQuickSample('unimodal')">Unimodal (control)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Tab: Results ====== -->
+  <div class="tab-content" id="tab-results">
+    <div id="results-content">
+      <p style="color:var(--color-text-secondary);">No analysis results yet. Go to Input to analyze data.</p>
+    </div>
+  </div>
+
+  <!-- ====== Tab: Benchmarks ====== -->
+  <div class="tab-content" id="tab-benchmarks">
+    <div class="card">
+      <div class="card-title">Benchmark Cases</div>
+      <p style="font-size:0.85rem;color:var(--color-text-secondary);margin-bottom:12px;">
+        Each benchmark case is a Gaussian mixture with a known critical bandwidth.
+        Click "Run" to verify the algorithm against the expected value.
+      </p>
+      <div id="benchmark-list">
+        <p style="color:var(--color-text-secondary);font-size:0.9rem;">Loading benchmarks…</p>
+      </div>
+    </div>
+    <div id="benchmark-result"></div>
+  </div>
+
+  <!-- ====== Tab: About ====== -->
+  <div class="tab-content" id="tab-info">
+    <div class="card">
+      <div class="card-title">About pola</div>
+      <div class="info-section">
+        <p><strong>pola</strong> is a Python package for detecting whether a distribution is meaningfully bimodal using the <strong>critical bandwidth</strong> method in kernel density estimation (KDE).</p>
+      </div>
+      <div class="info-section">
+        <h3>Version</h3>
+        <p><code id="info-version">—</code></p>
+      </div>
+      <div class="info-section">
+        <h3>API Endpoints (loaded via Pyodide)</h3>
+        <ul id="info-functions">
+          <li><code>critical_bandwidth(x)</code> — smallest unimodal bandwidth</li>
+          <li><code>silverman_bandwidth(x)</code> — Silverman's rule of thumb</li>
+          <li><code>find_trough(x, h)</code> — valley between KDE peaks</li>
+          <li><code>detect_components(x)</code> — decompose into Gaussian components</li>
+          <li><code>bootstrap_critical_bandwidth(x)</code> — confidence intervals</li>
+        </ul>
+      </div>
+      <div class="info-section">
+        <h3>Supported File Formats</h3>
+        <p><code>CSV, TSV, JSON, Markdown, HTML, XLSX, XLS, DOCX, PDF</code></p>
+      </div>
+      <div class="info-section">
+        <h3>How It Works</h3>
+        <p style="font-size:0.9rem;color:var(--color-text-secondary);">
+          All computation runs in your browser via Pyodide (Python compiled to WebAssembly).
+          The pola package is loaded from PyPI into the browser's Python runtime.
+          Your data never leaves your machine.
+        </p>
+      </div>
+      <div class="info-section">
+        <h3>Links</h3>
+        <p><a href="https://github.com/ryZhangHason/Polarization-CBW" target="_blank" rel="noopener">GitHub Repository</a></p>
+        <p><a href="https://pypi.org/project/pola/" target="_blank" rel="noopener">PyPI Package</a></p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+<script>
+/* ========================================================================
+   pola Web Frontend — Application Script
+   ======================================================================== */
+
+const app = {};  // Main application object
+
+// ---- State ----
+let pyodide = null;
+let pyready = false;
+let currentData = null;
+const state = {};
+
+// ---- DOM refs ----
+const $ = (id) => document.getElementById(id);
+const statusDot = $('status-dot');
+const statusText = $('status-text');
+const loadingOverlay = $('loading-overlay');
+const dropZone = $('drop-zone');
+const fileInput = $('file-input');
+const dataInput = $('data-input');
+const resultsContent = $('results-content');
+
+// ---- Init ----
+(async function init() {
+  updateStatus('loading', 'Initializing Pyodide…');
+  $('load-progress').textContent = 'Importing Pyodide…';
+
+  try {
+    pyodide = await loadPyodide({
+      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/',
+    });
+  } catch (e) {
+    updateStatus('error', 'Failed to load Pyodide');
+    $('load-progress').textContent = 'Error: ' + e.message;
+    console.error(e);
+    return;
+  }
+
+  updateStatus('loading', 'Loading numpy & scipy…');
+  await pyodide.loadPackage(['numpy', 'scipy']);
+
+  // Optionally load matplotlib for plots (adds ~8MB)
+  updateStatus('loading', 'Loading matplotlib (optional)…');
+  try {
+    await pyodide.loadPackage('matplotlib');
+  } catch(e) {
+    console.warn('matplotlib not available, plots disabled:', e.message);
+  }
+
+  updateStatus('loading', 'Installing optional deps…');
+  await pyodide.loadPackage('micropip');
+  // Install deps from Python side to avoid JS→Python proxy keyword arg issues.
+  // pdfplumber→pypdfium2 is a C extension incompatible with WASM, so skip it.
+  await pyodide.runPythonAsync(`
+import micropip
+for dep in ['openpyxl', 'python-docx', 'xlrd']:
+    try:
+        await micropip.install(dep)
+    except Exception as e:
+        print(f"Optional dep {dep} not available: {e}")
+`);
+
+  // Inject the pola package and Python scripts into the Pyodide filesystem
+  // Load pola from local source (NOT from PyPI — the PyPI 'pola' is a different package)
+  await loadPythonPackage('pola');
+  await loadPythonScript('analyze');
+  await loadPythonScript('visualize');
+
+  // Update version
+  try {
+    const ver = pyodide.runPython('import sys; sys.path.insert(0, "/"); import pola; pola.__version__');
+    $('version-badge').textContent = 'v' + ver;
+    $('info-version').textContent = ver;
+  } catch(_) {}
+
+  // Check if matplotlib loaded successfully
+  const hasMpl = pyodide.runPython(`
+try:
+    import matplotlib
+    1
+except:
+    0
+`);
+  state.hasMpl = hasMpl === 1;
+
+  updateStatus('ready', 'Ready');
+  loadingOverlay.style.display = 'none';
+  pyready = true;
+  $('btn-analyze-cb').disabled = false;
+  $('btn-analyze-full').disabled = false;
+  $('btn-bootstrap').disabled = false;
+  $('results-tab-btn').disabled = false;
+})();
+
+async function loadPythonScript(name) {
+  // Fetch the .py file and write it into Pyodide's virtual filesystem
+  const resp = await fetch(`py/${name}.py`);
+  const code = await resp.text();
+  pyodide.FS.writeFile(`/${name}.py`, code);
+}
+
+async function loadPythonPackage(pkg) {
+  // Recursively fetch all .py files from a package directory and write them
+  // into Pyodide's virtual filesystem under /pkg/, preserving directory structure.
+  // First, create the package root directory.
+  try { pyodide.FS.mkdir('/' + pkg); } catch(_) { /* already exists */ }
+  const resp = await fetch(`${pkg}/file-manifest.json`);
+  const manifest = await resp.json();
+  for (const relPath of manifest) {
+    const fileResp = await fetch(`${pkg}/${relPath}`);
+    const content = await fileResp.text();
+    // Write to /pkg/<relPath>, e.g. /pola/io/_base.py
+    const fullPath = '/' + pkg + '/' + relPath;
+    // Ensure parent directory exists
+    const parts = relPath.split('/');
+    if (parts.length > 1) {
+      const dirParts = parts.slice(0, -1);
+      for (let i = 1; i <= dirParts.length; i++) {
+        const dir = '/' + pkg + '/' + dirParts.slice(0, i).join('/');
+        try { pyodide.FS.mkdir(dir); } catch(_) { /* already exists */ }
+      }
+    }
+    pyodide.FS.writeFile(fullPath, content);
+  }
+}
+
+function updateStatus(state, text) {
+  statusDot.className = 'status-dot ' + state;
+  statusText.textContent = text;
+}
+
+// ---- Tab Switching ----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = $('tab-' + btn.dataset.tab);
+    if (tab) tab.classList.add('active');
+  });
+});
+
+// ---- File Drop Zone ----
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('drag-over');
+});
+
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+async function handleFile(file) {
+  if (!pyready) return;
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+
+  // Read file as bytes for Pyodide
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const bytes = new Uint8Array(e.target.result);
+    // Write to Pyodide filesystem
+    const path = '/tmp/upload' + ext;
+    pyodide.FS.writeFile(path, bytes);
+
+    try {
+      await pyodide.runPython(`
+import sys
+sys.path.insert(0, '/')
+from pola.io import read_data
+_data = read_data('${path}')
+_current_x = _data.tolist()
+`);
+      currentData = pyodide.globals.get('_current_x');
+      if (currentData && currentData.length > 0) {
+        dataInput.value = currentData.slice(0, 20).join(', ') + (currentData.length > 20 ? ', …' : '');
+        updateStatus('ready', `Loaded ${file.name} (${currentData.length} pts)`);
+      } else {
+        showError('No numerical data found in ' + file.name);
+      }
+    } catch (err) {
+      showError('Failed to parse file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ---- Quick Samples ----
+app.loadQuickSample = async function(type) {
+  if (!pyready) return;
+  try {
+    let code;
+    if (type === 'well_separated') {
+      code = `
+import numpy as np
+rng = np.random.default_rng(42)
+x = np.concatenate([rng.normal(-2, 0.3, 200), rng.normal(2, 0.3, 200)])
+x.tolist()
+`;
+    } else if (type === 'barely_separated') {
+      code = `
+import numpy as np
+rng = np.random.default_rng(42)
+x = np.concatenate([rng.normal(-0.5, 0.4, 300), rng.normal(0.5, 0.4, 300)])
+x.tolist()
+`;
+    } else {
+      code = `
+import numpy as np
+rng = np.random.default_rng(42)
+x = rng.normal(0, 1, 500)
+x.tolist()
+`;
+    }
+    currentData = pyodide.runPython(code);
+    dataInput.value = currentData.slice(0, 20).join(', ') + (currentData.length > 20 ? ', …' : '');
+    updateStatus('ready', `Loaded ${type} (${currentData.length} pts)`);
+  } catch (e) {
+    showError('Failed to generate sample: ' + e.message);
+  }
+};
+
+// ---- Analysis Actions ----
+$('btn-analyze-cb').addEventListener('click', async () => {
+  const data = getCurrentData();
+  if (!data) return;
+  const kernel = $('param-kernel').value;
+  const method = $('param-method').value;
+  await runAnalysis('cb', {data, kernel, method});
+});
+
+$('btn-analyze-full').addEventListener('click', async () => {
+  const data = getCurrentData();
+  if (!data) return;
+  const kernel = $('param-kernel').value;
+  const method = $('param-method').value;
+  const hFactor = parseFloat($('param-hfactor').value) || 0.85;
+  await runAnalysis('full', {data, kernel, method, hFactor});
+});
+
+$('btn-bootstrap').addEventListener('click', async () => {
+  const data = getCurrentData();
+  if (!data) return;
+  const n = parseInt($('param-bootstrap').value) || 99;
+  const kernel = $('param-kernel').value;
+  await runAnalysis('bootstrap', {data, n, kernel});
+});
+
+function getCurrentData() {
+  if (currentData && currentData.length > 0) return currentData;
+  // Try parsing from textarea
+  const text = dataInput.value.trim();
+  if (!text) {
+    showError('No data. Upload a file, paste numbers, or load a quick sample.');
+    return null;
+  }
+  const parsed = text.split(/[,\s\n]+/).map(Number).filter(v => !isNaN(v));
+  if (parsed.length < 2) {
+    showError('Need at least 2 numeric data points.');
+    return null;
+  }
+  currentData = parsed;
+  return currentData;
+}
+
+function showError(msg) {
+  const div = document.createElement('div');
+  div.className = 'error-alert';
+  div.textContent = msg;
+  resultsContent.innerHTML = '';
+  resultsContent.appendChild(div);
+  // Switch to results tab
+  document.querySelector('[data-tab="results"]').click();
+}
+
+async function runAnalysis(type, params) {
+  if (!pyready) { showError('Pyodide not ready yet.'); return; }
+
+  const showPlots = $('param-show-plots').checked;
+
+  try {
+    let result;
+    switch (type) {
+      case 'cb': {
+        result = JSON.parse(pyodide.runPython(`
+import json
+from analyze import analyze_critical_bandwidth
+json.dumps(analyze_critical_bandwidth(${JSON.stringify(params.data)}, "${params.kernel}", "${params.method}"))
+`));
+        break;
+      }
+      case 'full': {
+        result = JSON.parse(pyodide.runPython(`
+import json
+from analyze import analyze_full
+json.dumps(analyze_full(${JSON.stringify(params.data)}, "${params.kernel}", ${params.hFactor}, "${params.method}"))
+`));
+        break;
+      }
+      case 'bootstrap': {
+        result = JSON.parse(pyodide.runPython(`
+import json
+from analyze import run_bootstrap
+json.dumps(run_bootstrap(${JSON.stringify(params.data)}, ${params.n}, 0.05, 42, "${params.kernel}"))
+`));
+        break;
+      }
+    }
+
+    renderResults(type, result, params, showPlots);
+    document.querySelector('[data-tab="results"]').click();
+  } catch (e) {
+    showError('Analysis error: ' + e.message);
+    console.error(e);
+  }
+}
+
+// ---- Render Results ----
+function renderResults(type, result, params, showPlots) {
+  const html = [];
+
+  html.push('<div class="result-grid">');
+
+  // h_crit card (common to all types)
+  if (result.h_crit !== undefined) {
+    html.push(`
+      <div class="result-card">
+        <div class="result-label">Critical Bandwidth</div>
+        <div class="result-value">${result.h_crit.toFixed(4)}</div>
+      </div>
+    `);
+  }
+
+  // success card
+  if (result.success !== undefined) {
+    html.push(`
+      <div class="result-card">
+        <div class="result-label">Converged</div>
+        <div class="result-value ${result.success ? 'success' : ''}">${result.success ? 'Yes' : 'No'}</div>
+      </div>
+    `);
+  }
+
+  // dip_ratio
+  if (result.dip_ratio !== null && result.dip_ratio !== undefined) {
+    html.push(`
+      <div class="result-card">
+        <div class="result-label">Dip Ratio</div>
+        <div class="result-value">${result.dip_ratio.toFixed(4)}</div>
+      </div>
+    `);
+  }
+
+  // trough
+  if (result.trough !== null && result.trough !== undefined) {
+    html.push(`
+      <div class="result-card">
+        <div class="result-label">Trough</div>
+        <div class="result-value">${result.trough.toFixed(4)}</div>
+      </div>
+    `);
+  }
+
+  // n_points
+  if (result.n_points !== undefined) {
+    html.push(`
+      <div class="result-card">
+        <div class="result-label">Data Points</div>
+        <div class="result-value">${result.n_points}</div>
+      </div>
+    `);
+  }
+
+  // silverman
+  if (result.silverman_bandwidth !== undefined) {
+    html.push(`
+      <div class="result-card">
+        <div class="result-label">Silverman h</div>
+        <div class="result-value">${result.silverman_bandwidth.toFixed(4)}</div>
+      </div>
+    `);
+  }
+
+  html.push('</div>');
+
+  // Bootstrap-specific results
+  if (type === 'bootstrap') {
+    html.push(`
+      <div class="card">
+        <div class="card-title">Bootstrap Results (${result.n_resamples} resamples, ${(result.confidence_level * 100).toFixed(0)}% CI)</div>
+        <p><strong>CI:</strong> [${result.ci_lower.toFixed(4)}, ${result.ci_upper.toFixed(4)}]</p>
+        <p><strong>Standard Error:</strong> ${result.standard_error.toFixed(4)}</p>
+        <div>
+          <div style="font-size:0.8rem;color:var(--color-text-secondary);margin-top:8px;">Distribution (first 20 values):</div>
+          <div class="distribution-preview">${result.distribution.slice(0, 20).join(', ')}${result.distribution.length > 20 ? ', …' : ''}</div>
+        </div>
+      </div>
+    `);
+  }
+
+  // Component decomposition
+  if (result.components) {
+    html.push(`
+      <div class="card">
+        <div class="card-title">Component Decomposition</div>
+        <table class="comp-table">
+          <thead>
+            <tr><th>Component</th><th>Mean</th><th>Std</th><th>Weight</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Component 1</strong></td>
+              <td>${result.components.component1.mean.toFixed(4)}</td>
+              <td>${result.components.component1.std.toFixed(4)}</td>
+              <td>${(result.components.component1.weight * 100).toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td><strong>Component 2</strong></td>
+              <td>${result.components.component2.mean.toFixed(4)}</td>
+              <td>${result.components.component2.std.toFixed(4)}</td>
+              <td>${(result.components.component2.weight * 100).toFixed(1)}%</td>
+            </tr>
+          </tbody>
+        </table>
+        ${result.separation_point !== undefined ? `<p style="margin-top:8px;font-size:0.9rem;"><strong>Separation point:</strong> ${result.separation_point.toFixed(4)}</p>` : ''}
+      </div>
+    `);
+  }
+
+  // Benchmark comparison
+  if (result.h_crit_expected !== undefined) {
+    const error = result.h_crit - result.h_crit_expected;
+    const within = Math.abs(error) <= result.h_crit_tolerance;
+    html.push(`
+      <div class="card">
+        <div class="card-title">Benchmark Result: ${result.name}</div>
+        <p><strong>Expected h_crit:</strong> ${result.h_crit_expected.toFixed(4)}</p>
+        <p><strong>Computed h_crit:</strong> ${result.h_crit.toFixed(4)}</p>
+        <p><strong>Error:</strong> ${error.toFixed(4)} (tolerance: ±${result.h_crit_tolerance.toFixed(4)})</p>
+        <p><strong style="color:${within ? 'var(--color-success)' : 'var(--color-danger)'};">${within ? 'PASS' : 'FAIL'}</strong></p>
+      </div>
+    `);
+  }
+
+  // Kernel info
+  if (result.kernel) {
+    html.push(`<p style="font-size:0.8rem;color:var(--color-text-secondary);">Kernel: ${result.kernel}, Method: ${result.method || '—'}</p>`);
+  }
+
+  // ===== Plots =====
+  if (showPlots) {
+    html.push('<div class="plot-container">');
+
+    // Check if matplotlib is available
+    const hasMpl = state.hasMpl;
+
+    if (hasMpl && type !== 'bootstrap') {
+      const data = params.data;
+      const hCrit = result.h_crit;
+      const h = hCrit;
+
+      // KDE plot
+      try {
+        const canvasId = pyodide.runPython(`
+from visualize import kde_plot
+kde_plot(${JSON.stringify(data)}, ${h}, "${params.kernel}")
+`);
+        html.push(`
+          <div class="plot-box">
+            <canvas id="${canvasId}"></canvas>
+          </div>
+        `);
+        // We need to re-draw after DOM insertion — handled below
+        state._pendingCanvas = canvasId;
+      } catch(e) {
+        console.warn('KDE plot error:', e);
+      }
+
+      // Components plot (full analysis only)
+      if (type === 'full' && result.components) {
+        try {
+          const canvasId2 = pyodide.runPython(`
+from visualize import components_plot
+components_plot(${JSON.stringify(data)}, ${hCrit}, ${params.hFactor || 0.85}, "${params.kernel}")
+`);
+          if (canvasId2) {
+            html.push(`
+              <div class="plot-box">
+                <canvas id="${canvasId2}"></canvas>
+              </div>
+            `);
+          }
+        } catch(e) {
+          console.warn('Components plot error:', e);
+        }
+      }
+
+      // Bandwidth sweep
+      try {
+        const canvasId3 = pyodide.runPython(`
+from visualize import bandwidth_sweep_plot
+bandwidth_sweep_plot(${JSON.stringify(data)}, ${hCrit}, "${params.kernel}")
+`);
+        html.push(`
+          <div class="plot-box">
+            <canvas id="${canvasId3}"></canvas>
+          </div>
+        `);
+      } catch(e) {
+        console.warn('Sweep plot error:', e);
+      }
+    }
+
+    html.push('</div>');
+  }
+
+  resultsContent.innerHTML = html.join('');
+
+  // Re-draw any pending canvas elements (matplotlib canvas needs to be in DOM first)
+  if (state._pendingCanvas) {
+    // matplotlib's html5 canvas backend re-draws through show() —
+    // the canvas was already drawn when the python function was called.
+    // No additional action needed since matplotlib rendered to the element.
+    delete state._pendingCanvas;
+  }
+}
+
+// ---- Benchmarks ----
+(async function loadBenchmarks() {
+  // Wait for pyready then fetch
+  const checkReady = setInterval(() => {
+    if (pyready) {
+      clearInterval(checkReady);
+      _loadBenchmarks();
+    }
+  }, 200);
+})();
+
+async function _loadBenchmarks() {
+  try {
+    // Serialize to JSON inside Python to avoid PyProxy lifetime issues
+    const benchmarks = JSON.parse(pyodide.runPython(`
+import json
+from analyze import list_benchmarks
+json.dumps(list_benchmarks())
+`));
+    const list = $('benchmark-list');
+    list.innerHTML = benchmarks.map(b => `
+      <div class="benchmark-item">
+        <div>
+          <div class="benchmark-name">${b.name.replace(/_/g, ' ')}</div>
+          <div class="benchmark-desc">${b.description}</div>
+          <div class="benchmark-expected">Expected h_crit: ${b.h_crit_expected.toFixed(2)} ± ${b.h_crit_tolerance.toFixed(2)}</div>
+        </div>
+        <button class="btn btn-secondary" onclick="app.runBenchmark('${b.name}')">Run</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    $('benchmark-list').innerHTML = '<p style="color:var(--color-text-secondary);">Error loading benchmarks.</p>';
+    console.error(e);
+  }
+}
+
+app.runBenchmark = async function(name) {
+  if (!pyready) return;
+  try {
+    const result = JSON.parse(pyodide.runPython(`
+import json
+from analyze import analyze_benchmark
+json.dumps(analyze_benchmark("${name}", 42, "gaussian", 0.85))
+`));
+    // Also compute plots
+    const data = result.x;
+    delete result.x;
+    renderResults('full', result, {
+      data,
+      kernel: 'gaussian',
+      hFactor: 0.85,
+    }, $('param-show-plots').checked);
+    document.querySelector('[data-tab="results"]').click();
+  } catch(e) {
+    showError('Benchmark error: ' + e.message);
+  }
+};
+
+</script>
+</body>
+</html>

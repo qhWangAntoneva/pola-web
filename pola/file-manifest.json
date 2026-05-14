@@ -1,0 +1,18 @@
+[
+  "__init__.py",
+  "bandwidth.py",
+  "benchmark.py",
+  "bootstrap.py",
+  "io/__init__.py",
+  "io/_base.py",
+  "io/_common.py",
+  "io/_csv_adapter.py",
+  "io/_docx_adapter.py",
+  "io/_html_adapter.py",
+  "io/_json_adapter.py",
+  "io/_markdown_adapter.py",
+  "io/_pdf_adapter.py",
+  "io/_txt_adapter.py",
+  "io/_xls_adapter.py",
+  "io/_xlsx_adapter.py"
+]
