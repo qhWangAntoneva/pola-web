@@ -88,6 +88,18 @@
           <label class="param-label" for="param-bootstrap">Bootstrap N</label>
           <input class="param-input" id="param-bootstrap" type="number" value="99" min="10" max="999" step="10">
         </div>
+        <div class="param-group">
+          <label class="param-label" for="param-prominence">Prominence</label>
+          <input class="param-input" id="param-prominence" type="number" value="0.01" min="0.001" max="0.5" step="0.001">
+        </div>
+        <div class="param-group">
+          <label class="param-label" for="param-grid">Grid Points</label>
+          <input class="param-input" id="param-grid" type="number" value="512" min="100" max="2000" step="50">
+        </div>
+        <div class="param-group">
+          <label class="param-label" for="param-nboot">N Boot (dip)</label>
+          <input class="param-input" id="param-nboot" type="number" value="999" min="99" max="9999" step="100">
+        </div>
       </div>
 
       <div class="checkbox-group">
@@ -100,6 +112,11 @@
         <button class="btn btn-primary" id="btn-analyze-cb" disabled>Analyze Critical Bandwidth</button>
         <button class="btn btn-primary" id="btn-analyze-full" disabled>Full Analysis</button>
         <button class="btn btn-secondary" id="btn-bootstrap" disabled>Bootstrap</button>
+      </div>
+      <div class="btn-group" id="btn-group-ext">
+        <button class="btn btn-primary" id="btn-dip-test" disabled>Dip Test</button>
+        <button class="btn btn-primary" id="btn-bimodality" disabled>Bimodality Strength</button>
+        <button class="btn btn-secondary" id="btn-find-modes" disabled>Find Modes</button>
       </div>
     </div>
 
@@ -158,6 +175,9 @@
           <li><code>find_trough(x, h)</code> — valley between KDE peaks</li>
           <li><code>detect_components(x)</code> — decompose into Gaussian components</li>
           <li><code>bootstrap_critical_bandwidth(x)</code> — confidence intervals</li>
+          <li><code>dip_test_analysis(x)</code> — Hartigans' dip test for unimodality</li>
+          <li><code>bimodality_strength_analysis(x)</code> — bimodality strength assessment</li>
+          <li><code>find_modes_analysis(x)</code> — locate KDE modes with prominence filtering</li>
         </ul>
       </div>
       <div class="info-section">
@@ -232,14 +252,6 @@ const resultsContent = $('results-content');
     return;
   }
 
-  // Optionally load matplotlib for plots (adds ~8MB)
-  updateStatus('loading', 'Loading matplotlib (optional)…');
-  try {
-    await pyodide.loadPackage('matplotlib');
-  } catch(e) {
-    console.warn('matplotlib not available, plots disabled:', e.message);
-  }
-
   // === Load pola 0.1.1 from PyPI-sourced wheel ===
   // pola's METADATA declares deps (pdfplumber→pypdfium2 C++, openpyxl,
   // python-docx→lxml, xlrd) that are WASM-incompatible or unnecessary.
@@ -272,22 +284,15 @@ const resultsContent = $('results-content');
     console.warn('Could not determine pola version:', e.message);
   }
 
-  // Check if matplotlib loaded successfully
-  const hasMpl = pyodide.runPython(`
-try:
-    import matplotlib
-    1
-except:
-    0
-`);
-  state.hasMpl = hasMpl === 1;
-
   updateStatus('ready', 'Ready');
   loadingOverlay.style.display = 'none';
   pyready = true;
   $('btn-analyze-cb').disabled = false;
   $('btn-analyze-full').disabled = false;
   $('btn-bootstrap').disabled = false;
+  $('btn-dip-test').disabled = false;
+  $('btn-bimodality').disabled = false;
+  $('btn-find-modes').disabled = false;
   $('results-tab-btn').disabled = false;
   $('benchmarks-tab-btn').disabled = false;
 })();
@@ -466,6 +471,51 @@ $('btn-bootstrap').addEventListener('click', async () => {
   }
 });
 
+// ---- Dip Test ----
+$('btn-dip-test').addEventListener('click', async () => {
+  if (state._running) return;
+  const data = getCurrentData();
+  if (!data) return;
+  state._running = true;
+  try {
+    const nBoot = parseInt($('param-nboot').value) || 999;
+    await runAnalysis('dip', {data, n_boot: nBoot});
+  } finally {
+    state._running = false;
+  }
+});
+
+// ---- Bimodality Strength ----
+$('btn-bimodality').addEventListener('click', async () => {
+  if (state._running) return;
+  const data = getCurrentData();
+  if (!data) return;
+  state._running = true;
+  try {
+    const kernel = $('param-kernel').value;
+    const hFactor = parseFloat($('param-hfactor').value) || 0.85;
+    await runAnalysis('bimodality', {data, kernel, hFactor});
+  } finally {
+    state._running = false;
+  }
+});
+
+// ---- Find Modes ----
+$('btn-find-modes').addEventListener('click', async () => {
+  if (state._running) return;
+  const data = getCurrentData();
+  if (!data) return;
+  state._running = true;
+  try {
+    const kernel = $('param-kernel').value;
+    const prominence = parseFloat($('param-prominence').value) || 0.01;
+    const gridPoints = parseInt($('param-grid').value) || 512;
+    await runAnalysis('modes', {data, kernel, prominence, grid_points: gridPoints});
+  } finally {
+    state._running = false;
+  }
+});
+
 function getCurrentData() {
   if (currentData && currentData.length > 0) return currentData;
   // Try parsing from textarea
@@ -491,6 +541,23 @@ function showError(msg) {
   resultsContent.appendChild(div);
   // Switch to results tab
   document.querySelector('[data-tab="results"]').click();
+}
+
+// ---- Matplotlib on-demand loader ----
+async function ensureMatplotlib() {
+  if (state.hasMpl) return true;
+  try {
+    updateStatus('loading', 'Loading matplotlib (optional, ~8MB)…');
+    await pyodide.loadPackage('matplotlib');
+    state.hasMpl = true;
+    updateStatus('ready', 'Ready');
+    return true;
+  } catch(e) {
+    console.warn('matplotlib not available:', e.message);
+    state.hasMpl = false;
+    updateStatus('ready', 'Ready (plots disabled)');
+    return false;
+  }
 }
 
 async function runAnalysis(type, params) {
@@ -522,6 +589,30 @@ json.dumps(analyze_full(${JSON.stringify(params.data)}, "${params.kernel}", ${pa
 import json
 from analyze import run_bootstrap
 json.dumps(run_bootstrap(${JSON.stringify(params.data)}, ${params.n}, 0.05, 42, "${params.kernel}"))
+`));
+        break;
+      }
+      case 'dip': {
+        result = JSON.parse(pyodide.runPython(`
+import json
+from analyze import dip_test_analysis
+json.dumps(dip_test_analysis(${JSON.stringify(params.data)}, ${params.n_boot}, 42))
+`));
+        break;
+      }
+      case 'bimodality': {
+        result = JSON.parse(pyodide.runPython(`
+import json
+from analyze import bimodality_strength_analysis
+json.dumps(bimodality_strength_analysis(${JSON.stringify(params.data)}, ${params.hFactor || 0.85}, "${params.kernel}"))
+`));
+        break;
+      }
+      case 'modes': {
+        result = JSON.parse(pyodide.runPython(`
+import json
+from analyze import find_modes_analysis
+json.dumps(find_modes_analysis(${JSON.stringify(params.data)}, null, ${params.grid_points || 512}, ${params.prominence || 0.01}, "${params.kernel}"))
 `));
         break;
       }
@@ -667,82 +758,179 @@ function renderResults(type, result, params, showPlots) {
     html.push(`<p style="font-size:0.8rem;color:var(--color-text-secondary);">Kernel: ${result.kernel}, Method: ${result.method || '—'}</p>`);
   }
 
+  // ===== Dip Test Results =====
+  if (type === 'dip') {
+    html.push(`
+      <div class="card">
+        <div class="card-title">Dip Test (Hartigans')</div>
+        <div class="result-grid">
+          <div class="result-card">
+            <div class="result-label">DIP Statistic</div>
+            <div class="result-value">${result.dip.toFixed(6)}</div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">p-value</div>
+            <div class="result-value ${result.p_value < 0.05 ? 'success' : ''}" style="${result.p_value < 0.05 ? 'color:var(--color-success)' : 'color:var(--color-text)'}">
+              ${result.p_value.toFixed(4)}
+              ${result.p_value < 0.05 ? '<span style="font-size:0.75rem;margin-left:4px;">(significant)</span>' : '<span style="font-size:0.75rem;margin-left:4px;">(not significant)</span>'}
+            </div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">N Bootstrap</div>
+            <div class="result-value">${result.n_boot}</div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">N Extreme</div>
+            <div class="result-value">${result.n_extreme}</div>
+          </div>
+        </div>
+      </div>
+    `);
+    if (result.p_value < 0.05) {
+      html.push(`<p style="font-size:0.85rem;color:var(--color-success);margin-top:4px;">→ The distribution is significantly multimodal (p &lt; 0.05).</p>`);
+    } else {
+      html.push(`<p style="font-size:0.85rem;color:var(--color-text-secondary);margin-top:4px;">→ No significant evidence against unimodality (p ≥ 0.05).</p>`);
+    }
+  }
+
+  // ===== Bimodality Strength Results =====
+  if (type === 'bimodality') {
+    const strengthColors = {bimodal: 'var(--color-success)', weak: 'var(--color-warning)', unimodal: 'var(--color-danger)'};
+    const color = strengthColors[result.strength] || 'var(--color-text-secondary)';
+    html.push(`
+      <div class="card">
+        <div class="card-title">Bimodality Strength Assessment</div>
+        <div class="result-grid">
+          <div class="result-card">
+            <div class="result-label">Dip Ratio</div>
+            <div class="result-value">${result.dip_ratio.toFixed(4)}</div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">h_crit Ratio</div>
+            <div class="result-value">${result.h_crit_ratio.toFixed(4)}</div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">N Modes</div>
+            <div class="result-value">${result.n_modes}</div>
+          </div>
+          <div class="result-card">
+            <div class="result-label">Strength</div>
+            <div class="result-value" style="color:${color};font-weight:700;text-transform:capitalize;">${result.strength}</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="font-size:0.8rem;color:var(--color-text-secondary);margin-bottom:4px;">Strength Score: ${result.strength_score.toFixed(3)}</div>
+          <div class="progress-bar" style="height:8px;background:var(--color-border);border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:${(result.strength_score * 100).toFixed(0)}%;background:${color};border-radius:4px;transition:width 0.3s;"></div>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  // ===== Find Modes Results =====
+  if (type === 'modes') {
+    html.push(`
+      <div class="card">
+        <div class="card-title">Modes Found (${result.n_modes})</div>
+        <p style="font-size:0.85rem;color:var(--color-text-secondary);margin-bottom:8px;">Bandwidth: ${result.bandwidth.toFixed(4)}, Grid: ${result.grid_points} pts</p>
+        <table class="comp-table">
+          <thead>
+            <tr><th>#</th><th>Position</th><th>Height</th><th>Width</th><th>Prominence</th><th>Left Base</th><th>Right Base</th></tr>
+          </thead>
+          <tbody>
+            ${result.modes.map((m, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td>${m.position.toFixed(4)}</td>
+                <td>${m.height.toFixed(4)}</td>
+                <td>${m.width.toFixed(4)}</td>
+                <td>${m.prominence.toFixed(4)}</td>
+                <td>${m.left_base.toFixed(4)}</td>
+                <td>${m.right_base.toFixed(4)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `);
+  }
+
   // ===== Plots =====
-  if (showPlots) {
+  if (showPlots && (type === 'cb' || type === 'full' || type === 'modes')) {
     html.push('<div class="plot-container">');
 
-    // Check if matplotlib is available
-    const hasMpl = state.hasMpl;
+    // Lazy load matplotlib
+    (async () => {
+      const hasMpl = await ensureMatplotlib();
 
-    if (hasMpl && type !== 'bootstrap') {
-      const data = params.data;
-      const hCrit = result.h_crit;
-      const h = hCrit;
+      if (hasMpl && type !== 'bootstrap' && type !== 'dip' && type !== 'bimodality') {
+        const data = params.data;
+        const hCrit = result.h_crit || result.bandwidth;
+        const h = hCrit;
 
-      // KDE plot
-      try {
-        const canvasId = pyodide.runPython(`
+        // KDE plot
+        try {
+          const canvasId = pyodide.runPython(`
 from visualize import kde_plot
 kde_plot(${JSON.stringify(data)}, ${h}, "${params.kernel}")
 `);
-        html.push(`
-          <div class="plot-box">
-            <canvas id="${canvasId}"></canvas>
-          </div>
-        `);
-        // We need to re-draw after DOM insertion — handled below
-        state._pendingCanvas = canvasId;
-      } catch(e) {
-        console.warn('KDE plot error:', e);
-      }
+          // Append canvas after DOM rendering
+          const plotContainer = document.querySelector('.plot-container');
+          if (plotContainer) {
+            const div = document.createElement('div');
+            div.className = 'plot-box';
+            div.innerHTML = '<canvas id="' + canvasId + '"></canvas>';
+            plotContainer.appendChild(div);
+          }
+        } catch(e) {
+          console.warn('KDE plot error:', e);
+        }
 
-      // Components plot (full analysis only)
-      if (type === 'full' && result.components) {
-        try {
-          const canvasId2 = pyodide.runPython(`
+        // Components plot (full analysis only)
+        if (type === 'full' && result.components) {
+          try {
+            const canvasId2 = pyodide.runPython(`
 from visualize import components_plot
 components_plot(${JSON.stringify(data)}, ${hCrit}, ${params.hFactor || 0.85}, "${params.kernel}")
 `);
-          if (canvasId2) {
-            html.push(`
-              <div class="plot-box">
-                <canvas id="${canvasId2}"></canvas>
-              </div>
-            `);
+            if (canvasId2) {
+              const plotContainer = document.querySelector('.plot-container');
+              if (plotContainer) {
+                const div = document.createElement('div');
+                div.className = 'plot-box';
+                div.innerHTML = '<canvas id="' + canvasId2 + '"></canvas>';
+                plotContainer.appendChild(div);
+              }
+            }
+          } catch(e) {
+            console.warn('Components plot error:', e);
           }
-        } catch(e) {
-          console.warn('Components plot error:', e);
         }
-      }
 
-      // Bandwidth sweep
-      try {
-        const canvasId3 = pyodide.runPython(`
+        // Bandwidth sweep
+        try {
+          const canvasId3 = pyodide.runPython(`
 from visualize import bandwidth_sweep_plot
 bandwidth_sweep_plot(${JSON.stringify(data)}, ${hCrit}, "${params.kernel}")
 `);
-        html.push(`
-          <div class="plot-box">
-            <canvas id="${canvasId3}"></canvas>
-          </div>
-        `);
-      } catch(e) {
-        console.warn('Sweep plot error:', e);
+          const plotContainer = document.querySelector('.plot-container');
+          if (plotContainer) {
+            const div = document.createElement('div');
+            div.className = 'plot-box';
+            div.innerHTML = '<canvas id="' + canvasId3 + '"></canvas>';
+            plotContainer.appendChild(div);
+          }
+        } catch(e) {
+          console.warn('Sweep plot error:', e);
+        }
       }
-    }
+    })();
 
     html.push('</div>');
   }
 
   resultsContent.innerHTML = html.join('');
-
-  // Re-draw any pending canvas elements (matplotlib canvas needs to be in DOM first)
-  if (state._pendingCanvas) {
-    // matplotlib's html5 canvas backend re-draws through show() —
-    // the canvas was already drawn when the python function was called.
-    // No additional action needed since matplotlib rendered to the element.
-    delete state._pendingCanvas;
-  }
 }
 
 // ---- Benchmarks ----
