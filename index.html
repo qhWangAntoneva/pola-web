@@ -241,10 +241,14 @@ const resultsContent = $('results-content');
   // itself and are NOT needed by pola-web. With deps=True, micropip would
   // try to download ~33MB of transitive deps including pypdfium2 (C++ PDFium
   // bindings with NO WASM wheel) — causing a build hang in the browser.
-  await pyodide.runPythonAsync(`
-import micropip
-await micropip.install('pola', keep_going=True, deps=False)
-`);
+  //
+  // Note: we call micropip from JS (not inside runPythonAsync) to avoid a
+  // Pyodide v0.27.0 micropip race where a coroutine's _data is None at
+  // install time when scheduled inside runPythonAsync.
+  await pyodide.runPython('import micropip');
+  const _mp = pyodide.pyimport('micropip');
+  await _mp.install('pola', pyodide.toPy({keep_going: true, deps: false}));
+  _mp.destroy();
   await loadPythonScript('analyze');
   await loadPythonScript('visualize');
 
