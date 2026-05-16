@@ -401,6 +401,9 @@ def dip_test_analysis(
     x = np.array(data_list, dtype=float)
     _validate_input(x)
 
+    # Cap bootstrap iterations for WASM/Pyodide safety (O(n³) per iteration)
+    n_boot = min(n_boot, 99)
+
     result = dip_test(x, n_boot=n_boot, random_state=random_state)
 
     return _convert_result(
