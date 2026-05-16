@@ -233,22 +233,14 @@ const resultsContent = $('results-content');
     console.warn('matplotlib not available, plots disabled:', e.message);
   }
 
-  updateStatus('loading', 'Installing pola from PyPI…');
-  await pyodide.loadPackage('micropip');
-  // Install pola with deps=False — pola 0.1.0 only depends on numpy/scipy
-  // at runtime (already loaded via Pyodide). Its metadata lists pdfplumber,
-  // openpyxl, python-docx, xlrd as deps, but those are NOT imported by pola
-  // itself and are NOT needed by pola-web. With deps=True, micropip would
-  // try to download ~33MB of transitive deps including pypdfium2 (C++ PDFium
-  // bindings with NO WASM wheel) — causing a build hang in the browser.
-  //
-  // Note: we call micropip from JS (not inside runPythonAsync) to avoid a
-  // Pyodide v0.27.0 micropip race where a coroutine's _data is None at
-  // install time when scheduled inside runPythonAsync.
-  await pyodide.runPython('import micropip');
-  const _mp = pyodide.pyimport('micropip');
-  await _mp.install('pola', pyodide.toPy({keep_going: true, deps: false}));
-  _mp.destroy();
+  updateStatus('loading', 'Installing pola from local package…');
+  // Load pola from a local wheel using pyodide.loadPackage (not micropip).
+  // This bypasses both:
+  //   1) The micropip v0.27.0 async race (WheelInfo._data = None)
+  //   2) ~33MB of WASM-incompatible transitive deps (pypdfium2 C++ PDFium)
+  // pola is a pure-Python package that only imports numpy+scipy at runtime.
+  // The wheel was pre-built locally and checked into the repo.
+  await pyodide.loadPackage('./pola-0.1.0-py3-none-any.whl');
   await loadPythonScript('analyze');
   await loadPythonScript('visualize');
 
