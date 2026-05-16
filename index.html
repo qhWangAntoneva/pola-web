@@ -26,7 +26,7 @@
 <nav class="tabs" id="tab-nav">
   <button class="tab-btn active" data-tab="input">Input</button>
   <button class="tab-btn" data-tab="results" id="results-tab-btn" disabled>Results</button>
-  <button class="tab-btn" data-tab="benchmarks">Benchmarks</button>
+  <button class="tab-btn" data-tab="benchmarks" id="benchmarks-tab-btn" disabled>Benchmarks</button>
   <button class="tab-btn" data-tab="info">About</button>
 </nav>
 
@@ -223,7 +223,14 @@ const resultsContent = $('results-content');
   }
 
   updateStatus('loading', 'Loading numpy & scipy…');
-  await pyodide.loadPackage(['numpy', 'scipy']);
+  try {
+    await pyodide.loadPackage(['numpy', 'scipy']);
+  } catch(e) {
+    updateStatus('error', 'Failed to load numpy/scipy: ' + e.message);
+    console.error(e);
+    $('load-progress').textContent = 'Error: ' + e.message;
+    return;
+  }
 
   // Optionally load matplotlib for plots (adds ~8MB)
   updateStatus('loading', 'Loading matplotlib (optional)…');
@@ -254,7 +261,9 @@ const resultsContent = $('results-content');
     const ver = pyodide.runPython('import pola; pola.__version__');
     $('version-badge').textContent = 'v' + ver;
     $('info-version').textContent = ver;
-  } catch(_) {}
+  } catch(e) {
+    console.warn('Could not determine pola version:', e.message);
+  }
 
   // Check if matplotlib loaded successfully
   const hasMpl = pyodide.runPython(`
@@ -273,6 +282,7 @@ except:
   $('btn-analyze-full').disabled = false;
   $('btn-bootstrap').disabled = false;
   $('results-tab-btn').disabled = false;
+  $('benchmarks-tab-btn').disabled = false;
 })();
 
 async function loadPythonScript(name) {
@@ -364,7 +374,10 @@ except Exception as _io_err:
 
 // ---- Quick Samples ----
 app.loadQuickSample = async function(type) {
-  if (!pyready) return;
+  if (!pyready) {
+    showError('Pyodide not ready yet. Please wait for initialization to complete.');
+    return;
+  }
   try {
     let code;
     if (type === 'well_separated') {
@@ -399,28 +412,46 @@ x.tolist()
 
 // ---- Analysis Actions ----
 $('btn-analyze-cb').addEventListener('click', async () => {
+  if (state._running) return;
   const data = getCurrentData();
   if (!data) return;
-  const kernel = $('param-kernel').value;
-  const method = $('param-method').value;
-  await runAnalysis('cb', {data, kernel, method});
+  state._running = true;
+  try {
+    const kernel = $('param-kernel').value;
+    const method = $('param-method').value;
+    await runAnalysis('cb', {data, kernel, method});
+  } finally {
+    state._running = false;
+  }
 });
 
 $('btn-analyze-full').addEventListener('click', async () => {
+  if (state._running) return;
   const data = getCurrentData();
   if (!data) return;
-  const kernel = $('param-kernel').value;
-  const method = $('param-method').value;
-  const hFactor = parseFloat($('param-hfactor').value) || 0.85;
-  await runAnalysis('full', {data, kernel, method, hFactor});
+  state._running = true;
+  try {
+    const kernel = $('param-kernel').value;
+    const method = $('param-method').value;
+    const hFactor = parseFloat($('param-hfactor').value) || 0.85;
+    await runAnalysis('full', {data, kernel, method, hFactor});
+  } finally {
+    state._running = false;
+  }
 });
 
 $('btn-bootstrap').addEventListener('click', async () => {
+  if (state._running) return;
   const data = getCurrentData();
   if (!data) return;
-  const n = parseInt($('param-bootstrap').value) || 99;
-  const kernel = $('param-kernel').value;
-  await runAnalysis('bootstrap', {data, n, kernel});
+  state._running = true;
+  try {
+    const n = parseInt($('param-bootstrap').value) || 99;
+    const kernel = $('param-kernel').value;
+    await runAnalysis('bootstrap', {data, n, kernel});
+  } finally {
+    state._running = false;
+  }
 });
 
 function getCurrentData() {
@@ -708,9 +739,14 @@ bandwidth_sweep_plot(${JSON.stringify(data)}, ${hCrit}, "${params.kernel}")
   const checkReady = setInterval(() => {
     if (pyready) {
       clearInterval(checkReady);
+      clearTimeout(loadTimeout);
       _loadBenchmarks();
     }
   }, 200);
+  const loadTimeout = setTimeout(() => {
+    clearInterval(checkReady);
+    console.warn('Benchmarks: pyready timeout after 30s');
+  }, 30000);
 })();
 
 async function _loadBenchmarks() {
