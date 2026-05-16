@@ -246,15 +246,22 @@ for dep in ['openpyxl', 'python-docx', 'xlrd']:
         print(f"Optional dep {dep} not available: {e}")
 `);
 
-  // Inject the pola package and Python scripts into the Pyodide filesystem
-  // Load pola from local source (NOT from PyPI — the PyPI 'pola' is a different package)
-  await loadPythonPackage('pola');
+  // Install pola from PyPI into the Pyodide Python runtime
+  await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('pola')
+for dep in ['openpyxl', 'python-docx', 'xlrd']:
+    try:
+        await micropip.install(dep)
+    except Exception as e:
+        print(f"Optional dep {dep} not available: {e}")
+`);
   await loadPythonScript('analyze');
   await loadPythonScript('visualize');
 
   // Update version
   try {
-    const ver = pyodide.runPython('import sys; sys.path.insert(0, "/"); import pola; pola.__version__');
+    const ver = pyodide.runPython('import pola; pola.__version__');
     $('version-badge').textContent = 'v' + ver;
     $('info-version').textContent = ver;
   } catch(_) {}
@@ -283,31 +290,6 @@ async function loadPythonScript(name) {
   const resp = await fetch(`py/${name}.py`);
   const code = await resp.text();
   pyodide.FS.writeFile(`/${name}.py`, code);
-}
-
-async function loadPythonPackage(pkg) {
-  // Recursively fetch all .py files from a package directory and write them
-  // into Pyodide's virtual filesystem under /pkg/, preserving directory structure.
-  // First, create the package root directory.
-  try { pyodide.FS.mkdir('/' + pkg); } catch(_) { /* already exists */ }
-  const resp = await fetch(`${pkg}/file-manifest.json`);
-  const manifest = await resp.json();
-  for (const relPath of manifest) {
-    const fileResp = await fetch(`${pkg}/${relPath}`);
-    const content = await fileResp.text();
-    // Write to /pkg/<relPath>, e.g. /pola/io/_base.py
-    const fullPath = '/' + pkg + '/' + relPath;
-    // Ensure parent directory exists
-    const parts = relPath.split('/');
-    if (parts.length > 1) {
-      const dirParts = parts.slice(0, -1);
-      for (let i = 1; i <= dirParts.length; i++) {
-        const dir = '/' + pkg + '/' + dirParts.slice(0, i).join('/');
-        try { pyodide.FS.mkdir(dir); } catch(_) { /* already exists */ }
-      }
-    }
-    pyodide.FS.writeFile(fullPath, content);
-  }
 }
 
 function updateStatus(state, text) {

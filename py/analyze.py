@@ -12,9 +12,12 @@ All return values use only JSON-serializable Python types
 import numpy as np
 
 from pola import (
+    bimodality_strength,
     bootstrap_critical_bandwidth,
     critical_bandwidth,
     detect_components,
+    dip_test,
+    find_modes,
     find_trough,
     silverman_bandwidth,
 )
@@ -185,6 +188,7 @@ def run_bootstrap(data_list, n_resamples=99, alpha=0.05, random_state=42, kernel
             "distribution": result.distribution,
             "n_resamples": result.n_resamples,
             "confidence_level": result.confidence_level,
+            "n_failed": result.n_failed,
         }
     )
 
@@ -269,6 +273,140 @@ def analyze_benchmark(name, seed=42, kernel="gaussian", h_factor=0.85):
         pass
 
     return result
+
+
+def find_modes_analysis(
+    data_list,
+    h=None,
+    grid_points=None,
+    prominence=0.01,
+    kernel="gaussian",
+):
+    """
+    Find modes (peaks) in the KDE of a dataset.
+
+    Parameters
+    ----------
+    data_list : list[float]
+        Input data points.
+    h : float, optional
+        Bandwidth. If None, uses Silverman's rule.
+    grid_points : int, optional
+        Number of grid points for KDE evaluation.
+    prominence : float, optional
+        Minimum prominence for peak detection.
+    kernel : str, optional
+        Kernel function.
+
+    Returns
+    -------
+    dict
+        ``{"n_modes": int, "modes": list[dict], "bandwidth": float, "grid_points": int}``
+    """
+    x = np.array(data_list, dtype=float)
+    _validate_input(x)
+
+    if h is None:
+        h = float(silverman_bandwidth(x))
+
+    result = find_modes(
+        x, h=h, grid_points=grid_points, prominence=prominence, kernel=kernel
+    )
+
+    return _convert_result(
+        {
+            "n_modes": result.n_modes,
+            "modes": [
+                {
+                    "position": m.position,
+                    "height": m.height,
+                    "width": m.width,
+                    "prominence": m.prominence,
+                    "left_base": m.left_base,
+                    "right_base": m.right_base,
+                }
+                for m in result.modes
+            ],
+            "bandwidth": result.bandwidth,
+            "grid_points": result.grid_points,
+        }
+    )
+
+
+def bimodality_strength_analysis(
+    data_list,
+    h_factor=0.85,
+    kernel="gaussian",
+):
+    """
+    Assess bimodality strength using dip ratio and mode count.
+
+    Parameters
+    ----------
+    data_list : list[float]
+        Input data points.
+    h_factor : float, optional
+        Multiplier on Silverman bandwidth.
+    kernel : str, optional
+        Kernel function.
+
+    Returns
+    -------
+    dict
+        ``{"dip_ratio": float, "h_crit_ratio": float, "n_modes": int,
+        "strength": str, "strength_score": float}``
+    """
+    x = np.array(data_list, dtype=float)
+    _validate_input(x)
+
+    result = bimodality_strength(x, h_factor=h_factor, kernel=kernel)
+
+    return _convert_result(
+        {
+            "dip_ratio": result.dip_ratio,
+            "h_crit_ratio": result.h_crit_ratio,
+            "n_modes": result.n_modes,
+            "strength": result.strength,
+            "strength_score": result.strength_score,
+        }
+    )
+
+
+def dip_test_analysis(
+    data_list,
+    n_boot=999,
+    random_state=None,
+):
+    """
+    Run Hartigan's dip test for unimodality.
+
+    Parameters
+    ----------
+    data_list : list[float]
+        Input data points.
+    n_boot : int, optional
+        Number of bootstrap resamples.
+    random_state : int, optional
+        Random seed.
+
+    Returns
+    -------
+    dict
+        ``{"dip": float, "p_value": float, "n_boot": int, "n_extreme": int}``
+    """
+    x = np.array(data_list, dtype=float)
+    _validate_input(x)
+
+    result = dip_test(x, n_boot=n_boot, random_state=random_state)
+
+    return _convert_result(
+        {
+            "dip": result.dip,
+            "p_value": result.p_value,
+            "n_boot": result.n_boot,
+            "n_extreme": result.n_extreme,
+        }
+    )
 
 
 def get_pola_version():
