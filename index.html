@@ -233,14 +233,19 @@ const resultsContent = $('results-content');
     console.warn('matplotlib not available, plots disabled:', e.message);
   }
 
-  updateStatus('loading', 'Installing pola from local package…');
-  // Load pola from a local wheel using pyodide.loadPackage (not micropip).
-  // This bypasses both:
-  //   1) The micropip v0.27.0 async race (WheelInfo._data = None)
-  //   2) ~33MB of WASM-incompatible transitive deps (pypdfium2 C++ PDFium)
-  // pola is a pure-Python package that only imports numpy+scipy at runtime.
-  // The wheel was pre-built locally and checked into the repo.
-  await pyodide.loadPackage('./pola-0.1.0-py3-none-any.whl');
+  // === Load pola 0.1.1 from PyPI-sourced wheel ===
+  // pola's METADATA declares deps (pdfplumber→pypdfium2 C++, openpyxl,
+  // python-docx→lxml, xlrd) that are WASM-incompatible or unnecessary.
+  // Even micropip.install('pola', deps=False) fails because micropip
+  // still validates the wheel metadata and rejects pypdfium2 (no pure
+  // Python wheel for WASM). The most reliable approach is to download
+  // the wheel from PyPI and use pyodide.loadPackage(), which bypasses
+  // micropip entirely and loads the pure-Python package directly.
+  // The wheel (pola-0.1.1-py3-none-any.whl) was downloaded from:
+  // https://pypi.org/project/pola/0.1.1/
+  updateStatus('loading', 'Installing pola from PyPI wheel…');
+  await pyodide.loadPackage('./pola-0.1.1-py3-none-any.whl');
+
   await loadPythonScript('analyze');
   await loadPythonScript('visualize');
 
@@ -272,9 +277,10 @@ except:
 
 async function loadPythonScript(name) {
   // Fetch the .py file and write it into Pyodide's virtual filesystem
+  // Write to /home/pyodide/ (which IS in sys.path) instead of / (which is NOT)
   const resp = await fetch(`py/${name}.py`);
   const code = await resp.text();
-  pyodide.FS.writeFile(`/${name}.py`, code);
+  pyodide.FS.writeFile(`/home/pyodide/${name}.py`, code);
 }
 
 function updateStatus(state, text) {
@@ -333,9 +339,14 @@ async function handleFile(file) {
       await pyodide.runPython(`
 import sys
 sys.path.insert(0, '/')
-from pola.io import read_data
-_data = read_data('${path}')
-_current_x = _data.tolist()
+_current_x = []
+try:
+    from pola.io import read_data
+    _data = read_data('${path}')
+    _current_x = _data.tolist()
+except Exception as _io_err:
+    print(f"pola.io not available in WASM: {_io_err}")
+    _current_x = []
 `);
       currentData = pyodide.globals.get('_current_x');
       if (currentData && currentData.length > 0) {
