@@ -235,19 +235,15 @@ const resultsContent = $('results-content');
 
   updateStatus('loading', 'Installing pola from PyPI…');
   await pyodide.loadPackage('micropip');
-  // Install pola with keep_going=True so pdfplumber (C extension, WASM-incompatible)
-  // doesn't block the whole install. pola's io adapters use lazy imports so
-  // pdfplumber is only needed for PDF uploads — which we handle separately.
-  // Other deps (numpy, scipy) are already loaded by Pyodide.
-  // Remaining deps (openpyxl, python-docx, xlrd) are installed next.
+  // Install pola with deps=False — pola 0.1.0 only depends on numpy/scipy
+  // at runtime (already loaded via Pyodide). Its metadata lists pdfplumber,
+  // openpyxl, python-docx, xlrd as deps, but those are NOT imported by pola
+  // itself and are NOT needed by pola-web. With deps=True, micropip would
+  // try to download ~33MB of transitive deps including pypdfium2 (C++ PDFium
+  // bindings with NO WASM wheel) — causing a build hang in the browser.
   await pyodide.runPythonAsync(`
 import micropip
-await micropip.install('pola', keep_going=True, deps=True)
-for dep in ['openpyxl', 'python-docx', 'xlrd']:
-    try:
-        await micropip.install(dep)
-    except Exception as e:
-        print(f"Optional dep {dep} not available: {e}")
+await micropip.install('pola', keep_going=True, deps=False)
 `);
   await loadPythonScript('analyze');
   await loadPythonScript('visualize');
