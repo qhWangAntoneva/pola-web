@@ -12,15 +12,24 @@ All return values use only JSON-serializable Python types
 import numpy as np
 
 from pola import (
-    bimodality_strength,
     bootstrap_critical_bandwidth,
     critical_bandwidth,
     detect_components,
     dip_test,
-    find_modes,
     find_trough,
     silverman_bandwidth,
 )
+
+# bimodality_strength and find_modes may not be in all pola versions
+# Fall through to None if missing (callers should handle)
+try:
+    from pola import bimodality_strength
+except ImportError:
+    bimodality_strength = None
+try:
+    from pola import find_modes
+except ImportError:
+    find_modes = None
 from pola.bandwidth import _validate_input
 from pola.benchmark import BENCHMARK_CASES, get_benchmark_case
 
@@ -310,6 +319,9 @@ def find_modes_analysis(
     x = np.array(data_list, dtype=float)
     _validate_input(x)
 
+    if find_modes is None:
+        return {"error": "find_modes not available in this pola version"}
+
     if h is None:
         h = float(silverman_bandwidth(x))
 
@@ -362,6 +374,9 @@ def bimodality_strength_analysis(
     """
     x = np.array(data_list, dtype=float)
     _validate_input(x)
+
+    if bimodality_strength is None:
+        return {"error": "bimodality_strength not available in this pola version"}
 
     result = bimodality_strength(x, h_factor=h_factor, kernel=kernel)
 
