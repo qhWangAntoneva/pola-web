@@ -396,13 +396,34 @@ def dip_test_analysis(
     Returns
     -------
     dict
-        ``{"dip": float, "p_value": float, "n_boot": int, "n_extreme": int}``
+        ``{"dip": float, "p_value": float, "n_boot": int, "n_extreme": int,
+           "capped": bool, "subsampled": bool, "n_original": int}``
     """
     x = np.array(data_list, dtype=float)
     _validate_input(x)
+    n_original = len(x)
+    capped = False
+    subsampled = False
 
-    # Cap bootstrap iterations for WASM/Pyodide safety (O(n³) per iteration)
-    n_boot = min(n_boot, 99)
+    # Subsample large datasets for WASM performance (O(n²) algorithm)
+    if len(x) > 100:
+        rng = np.random.default_rng(random_state)
+        x = rng.choice(x, 100, replace=False)
+        subsampled = True
+        if random_state is not None:
+            random_state = random_state + 1  # shift for bootstrap
+
+    # Adaptive bootstrap cap based on data size
+    if len(x) <= 50:
+        max_boot = 99
+    elif len(x) <= 100:
+        max_boot = 50
+    else:
+        max_boot = 30
+
+    if n_boot > max_boot:
+        n_boot = max_boot
+        capped = True
 
     result = dip_test(x, n_boot=n_boot, random_state=random_state)
 
@@ -412,6 +433,9 @@ def dip_test_analysis(
             "p_value": result.p_value,
             "n_boot": result.n_boot,
             "n_extreme": result.n_extreme,
+            "capped": capped,
+            "subsampled": subsampled,
+            "n_original": n_original,
         }
     )
 
