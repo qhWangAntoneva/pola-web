@@ -40,7 +40,11 @@ def _to_js(val):
 
 def _convert_result(d):
     """Recursively convert all values in a dict to JSON-safe types."""
-    return {k: _to_js(v) for k, v in d.items()}
+    if isinstance(d, dict):
+        return {k: _convert_result(v) for k, v in d.items()}
+    elif isinstance(d, (list, tuple)):
+        return [_convert_result(v) for v in d]
+    return _to_js(d)
 
 
 def analyze_critical_bandwidth(

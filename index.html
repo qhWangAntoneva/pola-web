@@ -251,7 +251,14 @@ const resultsContent = $('results-content');
   // The wheel (pola-0.1.1-py3-none-any.whl) was downloaded from:
   // https://pypi.org/project/pola/0.1.1/
   updateStatus('loading', 'Installing pola from PyPI wheel…');
-  await pyodide.loadPackage('./pola-0.1.1-py3-none-any.whl');
+  try {
+    await pyodide.loadPackage('./pola-0.1.1-py3-none-any.whl');
+  } catch(e) {
+    updateStatus('error', 'Failed to load pola wheel: ' + e.message);
+    console.error(e);
+    $('load-progress').textContent = 'Error: ' + e.message;
+    return;
+  }
 
   await loadPythonScript('analyze');
   await loadPythonScript('visualize');
@@ -358,12 +365,17 @@ except Exception as _io_err:
     print(f"pola.io not available in WASM: {_io_err}")
     _current_x = []
 `);
-      currentData = pyodide.globals.get('_current_x');
-      if (currentData && currentData.length > 0) {
-        dataInput.value = currentData.slice(0, 20).join(', ') + (currentData.length > 20 ? ', …' : '');
-        updateStatus('ready', `Loaded ${file.name} (${currentData.length} pts)`);
-      } else {
-        showError('No numerical data found in ' + file.name);
+      const _xProxy = pyodide.globals.get('_current_x');
+      try {
+        currentData = _xProxy && _xProxy.length > 0 ? _xProxy.toJs() : null;
+        if (currentData && currentData.length > 0) {
+          dataInput.value = currentData.slice(0, 20).join(', ') + (currentData.length > 20 ? ', …' : '');
+          updateStatus('ready', `Loaded ${file.name} (${currentData.length} pts)`);
+        } else {
+          showError('No numerical data found in ' + file.name);
+        }
+      } finally {
+        if (_xProxy) _xProxy.destroy();
       }
     } catch (err) {
       showError('Failed to parse file: ' + err.message);
@@ -776,6 +788,8 @@ json.dumps(list_benchmarks())
 
 app.runBenchmark = async function(name) {
   if (!pyready) return;
+  if (state._running) return;
+  state._running = true;
   try {
     const result = JSON.parse(pyodide.runPython(`
 import json
@@ -793,6 +807,8 @@ json.dumps(analyze_benchmark("${name}", 42, "gaussian", 0.85))
     document.querySelector('[data-tab="results"]').click();
   } catch(e) {
     showError('Benchmark error: ' + e.message);
+  } finally {
+    state._running = false;
   }
 };
 
