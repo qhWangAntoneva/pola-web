@@ -233,23 +233,16 @@ const resultsContent = $('results-content');
     console.warn('matplotlib not available, plots disabled:', e.message);
   }
 
-  updateStatus('loading', 'Installing optional deps…');
+  updateStatus('loading', 'Installing pola from PyPI…');
   await pyodide.loadPackage('micropip');
-  // Install deps from Python side to avoid JS→Python proxy keyword arg issues.
-  // pdfplumber→pypdfium2 is a C extension incompatible with WASM, so skip it.
+  // Install pola with keep_going=True so pdfplumber (C extension, WASM-incompatible)
+  // doesn't block the whole install. pola's io adapters use lazy imports so
+  // pdfplumber is only needed for PDF uploads — which we handle separately.
+  // Other deps (numpy, scipy) are already loaded by Pyodide.
+  // Remaining deps (openpyxl, python-docx, xlrd) are installed next.
   await pyodide.runPythonAsync(`
 import micropip
-for dep in ['openpyxl', 'python-docx', 'xlrd']:
-    try:
-        await micropip.install(dep)
-    except Exception as e:
-        print(f"Optional dep {dep} not available: {e}")
-`);
-
-  // Install pola from PyPI into the Pyodide Python runtime
-  await pyodide.runPythonAsync(`
-import micropip
-await micropip.install('pola')
+await micropip.install('pola', keep_going=True, deps=True)
 for dep in ['openpyxl', 'python-docx', 'xlrd']:
     try:
         await micropip.install(dep)
