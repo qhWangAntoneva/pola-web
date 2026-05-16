@@ -421,6 +421,9 @@ x.tolist()
     }
     currentData = pyodide.runPython(code);
     dataInput.value = currentData.slice(0, 20).join(', ') + (currentData.length > 20 ? ', …' : '');
+    // Set default bootstrap values to 50 for WASM performance
+    $('param-bootstrap').value = '50';
+    $('param-nboot').value = '50';
     updateStatus('ready', `Loaded ${type} (${currentData.length} pts)`);
   } catch (e) {
     showError('Failed to generate sample: ' + e.message);
