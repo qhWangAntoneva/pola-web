@@ -421,24 +421,19 @@ def dip_test_analysis(
     subsampled = False
 
     # Subsample large datasets for WASM performance (O(n²) algorithm)
-    if len(x) > 100:
+    # n=50 is the sweet spot: ~2.5s native, ~13s WASM with 50 bootstraps
+    if len(x) > 50:
         rng = np.random.default_rng(random_state)
-        x = rng.choice(x, 100, replace=False)
+        x = rng.choice(x, 50, replace=False)
         subsampled = True
         if random_state is not None:
             random_state = random_state + 1  # shift for bootstrap
 
-    # Adaptive bootstrap cap based on data size
-    if len(x) <= 50:
-        max_boot = 99
-    elif len(x) <= 100:
-        max_boot = 50
-    else:
-        max_boot = 30
-
-    if n_boot > max_boot:
-        n_boot = max_boot
+    # Bootstrap cap: 50 gives p-value granularity of ~0.02 (fine for α=0.05)
+    # WASM has no parallel execution (no multiprocessing, GIL-bound threads)
+    if n_boot > 50:
         capped = True
+        n_boot = 50
 
     result = dip_test(x, n_boot=n_boot, random_state=random_state)
 
