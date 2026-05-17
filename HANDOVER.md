@@ -4,7 +4,8 @@
 > **仓库**: github.com/qhWangAntoneva/pola-web
 > **线上地址**: https://qhwangantoneva.github.io/pola-web/
 > **分支**: `gh-pages`（仅此分支，无 main）
-> **最新构建**: 31e756c — fix: _to_js() null bug + update pola wheel to 0.1.2
+> **最新构建**: e875766 — fix: matplotlib plots via PNG base64 (compat with Pyodide v0.27.0 WASM backend)
+> **线上版本**: 等待 GitHub Pages CDN 刷新（push 后约 2-10 分钟）
 > **算法依赖**: pola==0.1.2 from PyPI wheel (`pola-0.1.2-py3-none-any.whl`)
 
 ---
@@ -147,9 +148,9 @@ POLAWEB_HANDOVER.md                 ← 旧交接文档
 
 | # | 任务 | 优先级 | 说明 |
 |---|------|--------|------|
-| 1 | **commit + push 未提交变更** | 🔴 | `git add . && git commit -m "fix: add matplotlib-pyodide loadPackage"` |
-| 2 | **确认线上版本** | 🔴 | push 后刷新 pola-web 检查 Pyodide 版本和 pola 版本 |
-| 3 | **本地验证 Show Plots** | 🟠 | `python -m http.server 8000` → 浏览器打开 → 勾选 Show Plots → 运行 Full Analysis → 确认 canvas 渲染 |
+| 1 | ~~commit + push 未提交变更~~ | ~~🔴~~ | ~~`git add . && git commit ...`~~ ✅ 已提交 e875766 |
+| 2 | **等待 GitHub Pages CDN 刷新** | 🔴 | 约 2-10 分钟，刷新 `https://qhwangantoneva.github.io/pola-web/` 确认新版上线 |
+| 3 | **线上验证 Show Plots** | 🟠 | 上线后刷新页面，加载样本，运行 Full Analysis，确认 3 张 PNG 图片渲染 |
 
 ### 🟠 中等优先级
 
