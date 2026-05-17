@@ -46,7 +46,7 @@ pola-web 是 [pola](https://pypi.org/project/pola/) Python 包的浏览器端界
 | 组件 | 版本 | 说明 |
 |------|------|------|
 | [Pyodide](https://pyodide.org/) | v0.27.0 | WASM Python 运行时 |
-| [pola](https://pypi.org/project/pola/) | 0.1.1 | 核心计算库（critical bandwidth） |
+| [pola](https://pypi.org/project/pola/) | 0.1.2 | 核心计算库（critical bandwidth） |
 | numpy + scipy | Pyodide 内置 | 科学计算 |
 | matplotlib | Pyodide 内置 (可选) | 图表渲染 (~8MB) |
 | 前端 | 原生 HTML/CSS/JS | 无框架、无构建工具 |
@@ -92,7 +92,7 @@ GitHub Pages 对 `gh-pages` 分支自动发布。项目已配置 `.github/workfl
 ~/pola-web/
 ├── index.html                 # 主 SPA (HTML + CSS + JS)
 ├── style.css                  # 全部样式（含深色模式）
-├── pola-0.1.1-py3-none-any.whl  # pola wheel (本地静态文件)
+├── pola-0.1.2-py3-none-any.whl  # pola wheel (本地静态文件)
 ├── py/
 │   ├── analyze.py             # Python 桥接层（核心）
 │   ├── visualize.py           # matplotlib 图表渲染

@@ -458,10 +458,14 @@ def dip_test_analysis(
 
 
 def get_pola_version():
-    """Return pola package version."""
+    """Return pola package version.
+
+    Note: pola 0.1.2 was published with __version__ = '0.1.0' (upstream bug).
+    We correct it here so the UI shows the actual wheel version.
+    """
     from pola import __version__
 
-    return __version__
+    return __version__.replace("0.1.0", "0.1.2")
 
 
 def supported_kernels():

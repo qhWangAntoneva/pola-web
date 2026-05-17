@@ -275,7 +275,7 @@ const resultsContent = $('results-content');
 
   // Update version
   try {
-    const ver = pyodide.runPython('import pola; pola.__version__');
+    const ver = pyodide.runPython('from analyze import get_pola_version; get_pola_version()');
     $('version-badge').textContent = 'v' + ver;
     $('info-version').textContent = ver;
   } catch(e) {

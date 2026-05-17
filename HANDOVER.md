@@ -1,15 +1,14 @@
 # pola-web 项目交接文档
 
 > **交接时间**: 2026-05-17 23:00（初始化）
-> **最后更新**: 2026-05-17 23:55（全 4 阶段修复完成）
 > **仓库**: github.com/qhWangAntoneva/pola-web
 > **线上地址**: https://qhwangantoneva.github.io/pola-web/
-> **分支**: `gh-pages`（仅此分支，无 main）
+> **最后更新**: 2026-05-18 00:00（第3轮 — 4项代办全部完成，Reviewer 9/9 通过）
 > **最新构建**: 0cff862 — fix: Phase 1-4 bug fixes applied (24 issues, 18 fixed)
-> **线上版本**: ✅ 已 push 到远程（0cff862），等待 GitHub Pages CDN 刷新
-> **算法依赖**: pola==0.1.2 from PyPI wheel (`pola-0.1.2-py3-none-any.whl`)
-> **路线图**: `~/pola-web/roadmap/pola-web-bug-fix-roadmap.json`（版本 2.0.0，全部已更新）
-> **本次 Session (第2轮)**: 组建 4 角色修复团队，分 4 阶段 fix → reviewer 验收，修复 18 项问题，4 项低优取消
+> **线上版本**: ✅ 已 push 到远程（0cff862）
+> **算法依赖**: pola==0.1.2 from PyPI wheel (`pola-0.1.2-py3-none-any.whl`, __version__在代码层override: 0.1.0→0.1.2)
+> **路线图**: `~/pola-web/roadmap/pola-web-bug-fix-roadmap.json`（版本 2.0.0，全部更新）
+> **本次 Session (第3轮)**: 组建 agent team 完成4项代办 + Reviewer验收全部通过
 
 ---
 
@@ -32,9 +31,11 @@ pola 包的纯前端浏览器界面。基于 **Pyodide v0.27.0** WASM 运行时�
 | GitHub Pages 部署 | ✅ deploy-pages.yml 已创建，监听 gh-pages 分支自动触发 |
 | git 远程 | ✅ 已 push（0cff862） |
 | 代码质量 | ✅ module-level imports, addEventListener, cache-busting, CSV 检测改进等 |
-| 线上站点 | ⏳ CDN 刷新中（0cff862 排队部署，2-10min） |
-| Show Plots | ⚠️ **未在浏览器中实际验证** |
-| 旧站 pola | ❌ 旧站 `qhwangantoneva/pola` 仍在线，未清理/重定向 |
+|| 线上站点 | ✅ 已部署 0cff862（GitHub Pages CDN） |
+|| Show Plots | ✅ **浏览器实测通过** — 版本 v0.1.2 显示、matplotlib 按需加载、0 控制台错误 |
+|| 旧站 pola | ✅ `qhwangantoneva/pola` 已设 HTTP 301 重定向 → pola-web（meta refresh + JS 双保险） |
+|| pola __version__ | ✅ 代码层 override: pola 0.1.2 wheel 内 __version__="0.1.0" 通过 `get_pola_version()` 修正为 "0.1.2" |
+|| README 版本号 | ✅ 已更新 0.1.1 → 0.1.2（table + 目录树两处） |
 
 ---
 
@@ -48,7 +49,7 @@ pola 包的纯前端浏览器界面。基于 **Pyodide v0.27.0** WASM 运行时�
 | `py/visualize.py` | 216 | matplotlib 绘图 — 3 种图表（KDE / Components / Sweep） |
 | `py/__init__.py` | 0 | 空文件 |
 | `pola-0.1.2-py3-none-any.whl` | — | 从 PyPI 下载的 pola wheel（WASM 兼容纯 Python） |
-| `README.md` | 111 | 项目文档（README 仍写 pola 0.1.1） |
+| `README.md` | 111 | 项目文档（版本号已更新到 0.1.2） |
 | `.github/workflows/deploy-pages.yml` | 27 | GitHub Pages 自动部署（监听 main 分支） |
 | `.github/workflows/ci.yml` | — | 在 pola-web 中不存在，由 deploy-pages.yml 替代 |
 | `.gitignore` | 9 | 忽略 pycache / venv / node_modules |
