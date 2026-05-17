@@ -354,7 +354,7 @@ async function handleFile(file) {
   const reader = new FileReader();
   reader.onload = async (e) => {
     const content = e.target.result;
-    const ext = fileName.substring(fileName.lastIndexOf('.'));
+    const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
 
     // 纯 JS CSV/TSV/TXT 解析
     if (['.csv', '.tsv', '.txt'].includes(ext)) {
@@ -443,7 +443,6 @@ x = rng.normal(0, 1, 500)
 x.tolist()
 `;
     }
-    const _code = `import numpy as np; ${code.split('import numpy as np')[1]?.trim() || code}`;
     const _pxProxy = pyodide.runPython(code.replace(/x\.tolist\(\)\s*$/, '_tmp = x.tolist(); del x; _tmp'));
     try {
       currentData = _pxProxy.toJs();
@@ -713,7 +712,11 @@ json.dumps(find_modes_analysis(${JSON.stringify(params.data)}, None, ${params.gr
 function renderResults(type, result, params, showPlots) {
   // Error前置检查：若结果中包含error字段，直接显示错误
   if (result && result.error) {
-    resultsContent.innerHTML = `<div class="error-alert">${result.error}</div>`;
+    resultsContent.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'error-alert';
+    div.textContent = result.error;
+    resultsContent.appendChild(div);
     document.querySelector('[data-tab="results"]').click();
     return;
   }
@@ -1055,7 +1058,7 @@ bandwidth_sweep_plot(${JSON.stringify(data)}, ${hCrit}, "${params.kernel}")
           }
         }
       }
-    })();
+    })().catch(e => console.error('Plot IIFE error:', e));
 
     html.push('</div>');
   }
@@ -1113,11 +1116,13 @@ app.runBenchmark = async function(name) {
   if (state._running) return;
   state._running = true;
   try {
+    pyodide.globals.set('_bm_name', name);
     const result = JSON.parse(pyodide.runPython(`
 import json
 from analyze import analyze_benchmark
-json.dumps(analyze_benchmark("${name}", 42, "gaussian", 0.85))
+json.dumps(analyze_benchmark(_bm_name, 42, "gaussian", 0.85))
 `));
+    pyodide.globals.delete('_bm_name');
     // Also compute plots
     const data = result.x;
     delete result.x;
