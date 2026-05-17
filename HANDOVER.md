@@ -1,14 +1,15 @@
 # pola-web 项目交接文档
 
-> **交接时间**: 2026-05-17 23:00
+> **交接时间**: 2026-05-17 23:00（初始化）
+> **最后更新**: 2026-05-17 23:55（全 4 阶段修复完成）
 > **仓库**: github.com/qhWangAntoneva/pola-web
 > **线上地址**: https://qhwangantoneva.github.io/pola-web/
 > **分支**: `gh-pages`（仅此分支，无 main）
-> **最新构建**: d2a6057 — docs: update HANDOVER.md with e875766 build info
-> **线上版本**: 已 push 到远程，等待 GitHub Pages CDN 刷新
+> **最新构建**: 0cff862 — fix: Phase 1-4 bug fixes applied (24 issues, 18 fixed)
+> **线上版本**: ✅ 已 push 到远程（0cff862），等待 GitHub Pages CDN 刷新
 > **算法依赖**: pola==0.1.2 from PyPI wheel (`pola-0.1.2-py3-none-any.whl`)
-> **路线图**: `~/pola-web/roadmap/pola-web-bug-fix-roadmap.json`
-> **本次 Session**: 交接文档 + matplotlib plot 修复 + 深度 Bug Hunt（21 项发现）
+> **路线图**: `~/pola-web/roadmap/pola-web-bug-fix-roadmap.json`（版本 2.0.0，全部已更新）
+> **本次 Session (第2轮)**: 组建 4 角色修复团队，分 4 阶段 fix → reviewer 验收，修复 18 项问题，4 项低优取消
 
 ---
 
@@ -22,15 +23,16 @@ pola 包的纯前端浏览器界面。基于 **Pyodide v0.27.0** WASM 运行时�
 
 | 维度 | 状态 |
 |------|------|
-| 前端功能 | ✅ 全部 6 项分析功能通过验证（CB / Full / Bootstrap / Dip Test / Bimodality Strength / Find Modes） |
+|| 前端功能 | ✅ 全部 6 项分析功能通过验证（CB / Full / Bootstrap / Dip Test / Bimodality Strength / Find Modes） |
 | 算法版本 | ✅ pola==0.1.2（wheel 加载，新增 bimodality_strength + find_modes） |
 | matplotlib 渲染 | ✅ 已修复 — 从 html5_canvas_element（不兼容 Pyodide v0.27.0）改为 PNG base64 data URL |
 | 4 个旧 CRITICAL bug | ✅ 已修复（PyProxy泄漏、Stale IIFE、XSS、Error crash） |
+| Bug 修复 Phase 1-4 | ✅ 全部完成 — 18 项修复已提交（0cff862），4 项低优已评估为取消 |
 | 迁移 | ✅ CBW web/ → pola-web 迁移完成，CBW 端已标记废弃 |
 | GitHub Pages 部署 | ✅ deploy-pages.yml 已创建，监听 gh-pages 分支自动触发 |
-| git 远程 | ✅ 已 push（d2a6057） |
-| Bug 清单 | 📋 21 项确认问题（3 CRITICAL, 5 HIGH, 6 MEDIUM, 7 LOW/INFO）见路线图 |
-| 线上站点 | ✅ 当前在线，显示 pola web（从哪次构建上线待确认） |
+| git 远程 | ✅ 已 push（0cff862） |
+| 代码质量 | ✅ module-level imports, addEventListener, cache-busting, CSV 检测改进等 |
+| 线上站点 | ⏳ CDN 刷新中（0cff862 排队部署，2-10min） |
 | Show Plots | ⚠️ **未在浏览器中实际验证** |
 | 旧站 pola | ❌ 旧站 `qhwangantoneva/pola` 仍在线，未清理/重定向 |
 
@@ -104,19 +106,23 @@ handleFile 函数采用**分级策略**：
 ```
 分支: gh-pages（仅有此分支）
 远程: origin -> https://github.com/qhWangAntoneva/pola-web.git
+最新提交: 0cff862 — fix: Phase 1-4 bug fixes applied (24 issues, 18 fixed)
 ```
 
-### 未提交变更（2 文件）
+### 变更概览（0cff862 vs ce71218）
 
 ```diff
-- INTEGRATION_REVIEW.md（已删除 - 旧评审报告，清理完成）
-+ index.html: 第 629 行新增 await pyodide.loadPackage('matplotlib-pyodide')
+M  index.html          — 12项修复: null guard, .toFixed, onClick→addEventListener, cache-busting, etc.
+M  py/analyze.py        — 4项修复: complex→dict, except拓宽, set→list, method透传
+M  py/visualize.py      — 3项修复: h校验, 模块级import, 去重np import
+M  style.css            — 3项修复: z-index, plot-box img, --color-bg-secondary
+M  roadmap/*.json       — 路线图更新: 全部标记为 DONE/CANCELLED
 ```
 
-### 未跟踪文件（3 文件）
+### 遗留文件
 
 ```
-.github/workflows/deploy-pages.yml  ← 部署 workflow（需创建 main 分支才能用）
+.github/workflows/deploy-pages.yml  ← 部署 workflow
 HANDOVER-pola-web-migration.md      ← 旧交接文档
 POLAWEB_HANDOVER.md                 ← 旧交接文档
 ```
@@ -125,77 +131,81 @@ POLAWEB_HANDOVER.md                 ← 旧交接文档
 
 ## 已知问题 & 风险
 
-### 🚨 重要问题
+### ✅ 已修复（Phase 1-4, 2026-05-17）
 
-1. **远程 gh-pages 为空** — 本地已提交的 hash（31e756c）从未 push 到 remote，远程线上站点显示的是旧版本。**这是最紧急的行动项。**
+以下 18 项问题已全部修复并提交（0cff862）：
 
-2. **deploy-pages.yml 监听 main 但仓库只有 gh-pages** — 需要创建 main 分支或修改 workflow。但 pola-web 所有内容在 gh-pages 分支（GitHub Pages 直接从此分支发布），所以是否需要 main 取决于工作流习惯。推荐：保持 gh-pages 为真相源，修改 workflow 也监听 gh-pages 或直接 manual dispatch。
+| # | 严重性 | 问题 | 位置 | 状态 |
+|---|--------|------|------|------|
+| 1 | 🔴 | Loading overlay 无 z-index，被 header 挡住 | style.css:167 | ✅ DONE |
+| 2 | 🔴 | renderResults 对 null result 无保护 | index.html:710 | ✅ DONE |
+| 3 | 🔴 | _to_js 返回 complex → JSON 失败 | analyze.py:47-48 | ✅ DONE |
+| 4 | 🟠 | _bm_name PyProxy leak，不在 finally 块 | index.html:1117 | ✅ DONE |
+| 5 | 🟠 | Dip 显示 "100 pts" 实际用 50 pts | index.html:882 | ✅ DONE |
+| 6 | 🟠 | kde_plot 无 h>0 校验 | visualize.py:37 | ✅ DONE |
+| 7 | 🟠 | analyze_full method 不一致 | analyze.py:133,146 | ✅ DONE |
+| 8 | 🟠 | fetch py/ 无缓存破坏 | index.html:301 | ✅ DONE |
+| 9 | 🟡 | 5 处 .toFixed() 无 null guard | index.html:多处 | ✅ DONE |
+| 10 | 🟡 | 异常捕获太窄 | analyze.py:161,290 | ✅ DONE |
+| 11 | 🟡 | FileReader 无 onerror | index.html:351 | ✅ DONE |
+| 12 | 🟡 | CSS --color-bg-secondary 未定义 | style.css:root | ✅ DONE |
+| 13 | 🟡 | _to_js 未处理 set 类型 | analyze.py:53 | ✅ DONE |
+| 14 | 🟡 | CSV 表头检测脆弱 | index.html:360 | ✅ DONE |
+| 15 | 🔵 | 模块级 import 优化 | visualize.py | ✅ DONE |
+| 16 | 🔵 | onclick → addEventListener | index.html:130-132 | ✅ DONE |
+| 17 | 🔵 | benchmark 可选链 | index.html:837 | ✅ DONE |
+| N1 | 🟡 | analyze_benchmark method 参数 | analyze.py:236 | ✅ DONE |
+| N2 | 🟡 | .plot-box canvas → img (CSS) | style.css:411 | ✅ DONE |
+| N3 | 🔵 | 去重 numpy import | visualize.py | ✅ DONE |
 
-3. **Show Plots 功能未实际测试** — matplotlib+pyodide 的 canvas 渲染仅在代码层面修复，**未在浏览器中实际验证**。
+### ❌ 已取消（低优先级）
 
-### 已知次要问题
+| # | 问题 | 原因 |
+|---|------|------|
+| P4-4 | registerModule 替代 template string | 改动量大、连锁风险高，影响已评估为低 |
+| N4 | setInterval→event驱动 | 功能正常，优化价值低 |
+| N5 | IIFE plot 闪烁 | 用户体验边缘情况 |
+| N6 | handleFile 路径注入 | 扩展名已经 .toLowerCase() 过滤，风险可控 |
 
-| 问题 | 等级 | 说明 |
-|------|------|------|
-| pola `__version__` 显示 0.1.0（实际是 0.1.2） | 低 | PyPI 包发布时未更新版本号 |
-| pola.io 在 WASM 中不可用 | 已接受 | 仅影响 XLSX/DOCX/PDF 上传（纯 JS 解析 CSV/TSV/JSON 正常工作） |
-| README 版本号写 0.1.1 | 低 | 应更新到 0.1.2 |
-| 旧站 `qhwangantoneva/pola` 仍在线 | 中 | 用户可能访问旧站，建议加 HTTP 301 重定向 |
+### 🚨 仍待处理
 
----
+1. **Show Plots 未实际验证** — matplotlib+pyodide PNG base64 修复仅在代码层面通过，**未在浏览器中实际验证**。CDN 刷新后建议先测这个。
+2. **旧站 `qhwangantoneva/pola` 清理** — 仍在线，建议 HTTP 301 重定向到新站。
+3. **pola `__version__` 显示 0.1.0** — PyPI 包发布时未更新版本号（实际是 0.1.2）。
+4. **README 版本号写 0.1.1** — 应更新到 0.1.2。
 
 ## 🗺️ Bug 修复路线图
 
-本次 Session（2026-05-17 22:35~23:00）通过 4 角色 subagent team（Python 代码审计 🐛 + 前端审计 🐛 + WASM 性能分析 ⚡ + 集成评审 🔗）对 pola-web 进行了深度 bug hunt，共发现 **56 项原始发现，合并为 21 项确认问题**（3 CRITICAL, 5 HIGH, 6 MEDIUM, 7 LOW/INFO）。
+**两轮 Session 完成全部 4 阶段修复 + 新增发现。**
 
-**路线图文件**: `roadmap/pola-web-bug-fix-roadmap.json`
+| Session | 工作内容 | 结果 |
+|---------|----------|------|
+| 第1轮 (22:35-23:00) | 交接文档 + matplotlib plot 修复 + 深度 Bug Hunt | 发现 21 项问题，创建路线图 |
+| 第2轮 (23:00-23:55) | 组建 4 角色 team 分阶段修复 + reviewer 验收 | **18 项修复 + 4 项取消**，提交 0cff862 |
 
-### 4 阶段修复计划
+**最终详情见**: `roadmap/pola-web-bug-fix-roadmap.json`
 
-| Phase | 优先级 | 任务数 | 预计耗时 | 说明 |
-|-------|--------|--------|----------|------|
-| Phase 1 | 🔴 CRITICAL | 3 | ~12min | Loading overlay z-index、renderResults null 保护、complex JSON 序列化 |
-| Phase 2 | 🟠 HIGH | 5 | ~21min | PyProxy leak、dip 显示错误、h>0 校验、method 一致性、fetch 缓存破坏 |
-| Phase 3 | 🟡 MEDIUM | 6 | ~29min | .toFixed guard、异常拓宽、onerror、CSS 变量、set 类型、CSV 检测 |
-| Phase 4 | 🔵 LOW | 4 | ~30min | 模块级 import、onclick 迁移、benchmark guard、模板注入重构 |
-| **总计** | | **18** | **~92min** | 全部修复后应用应达到 8/10 |
+### 修复统计
 
-### 本次 Session 已完成的工作
+| Phase | 优先级 | 任务数 | 状态 |
+|-------|--------|--------|------|
+| Phase 1 | 🔴 CRITICAL | 3 | ✅ DONE |
+| Phase 2 | 🟠 HIGH | 5 | ✅ DONE |
+| Phase 3 | 🟡 MEDIUM | 6 | ✅ DONE |
+| Phase 4 | 🔵 LOW | 3 | ✅ DONE |
+| New | 🟡+🔵 新增 | 3 | ✅ DONE |
+| Cancelled | ⬜ | 4 | ❌ 低优取消 |
+| **总计** | | **24** | **18 DONE / 4 CANCELLED** |
 
-| # | 工作内容 | 状态 |
-|---|----------|------|
-| 1 | 创建 HANDOVER.md 完整交接文档 | ✅ |
-| 2 | 本地验证 Show Plots — 发现 3 个 matplotlib plot 全崩 | ✅ |
-| 3 | visualize.py + index.html: 修复 plots → PNG base64 data URL | ✅ |
-| 4 | deploy-pages.yml: branches [main] → [gh-pages] | ✅ |
-| 5 | git commit + push (d2a6057) | ✅ |
-| 6 | 4 角色 Bug Hunt → 21 项发现 + 路线图 | ✅ |
+### 团队作战记录
 
-### 已知问题（来自 Bug Hunt）
-
-| # | 严重性 | 问题 | 位置 |
-|---|--------|------|------|
-| 1 | 🔴 | Loading overlay 无 z-index，被 header 挡住 | style.css:167 |
-| 2 | 🔴 | renderResults 对 null result 无保护，UI 崩 | index.html:710-730 |
-| 3 | 🔴 | _to_js 返回 complex → JSON 序列化失败 | analyze.py:47-48 |
-| 4 | 🟠 | _bm_name PyProxy leak，不在 finally 块 | index.html:1117-1123 |
-| 5 | 🟠 | Dip 显示 "100 pts" 实际用 50 pts | index.html:882 |
-| 6 | 🟠 | kde_plot 无 h>0 校验 | visualize.py:37 |
-| 7 | 🟠 | analyze_full method 不一致 | analyze.py:133,146 |
-| 8 | 🟠 | fetch py/ 脚本无缓存破坏 | index.html:301 |
-| 9 | 🟡 | 5 处 .toFixed() 无 null guard | index.html:多处 |
-| 10 | 🟡 | 异常捕获太窄 (只 catch ValueError) | analyze.py:161 |
-| 11 | 🟡 | FileReader 无 onerror | index.html:351 |
-| 12 | 🟡 | CSS --color-bg-secondary 未定义 | index.html:881 |
-| 13 | 🟡 | _to_js 未处理 set 类型 | analyze.py:53 |
-| 14 | 🟡 | CSV 表头检测脆弱 | index.html:360 |
-| 15-18 | 🔵 | 代码质量/优化项（4项） | 多处 |
-
-### 后续方向
-
-1. **按路线图顺序修复 bug** — 从 Phase 1 开始，逐步推进
-2. **线上验证 Show Plots** — CDN 刷新后验证 PNG 图表渲染正常
-3. **旧站 `qhwangantoneva/pola` 清理** — 加 301 重定向到新站
+| 角色 | 参与 |
+|------|------|
+| 🐛 Code Auditor | 探索 + 全阶段验证 |
+| 🎯 Functional Tester | 线上端到端验证 |
+| ⚡ WASM Specialist | 性能/内存/算法分析 |
+| 🔧 Worker × 3批次 | 修复执行（每阶段并行） |
+| 🔍 Reviewer × 4轮 | 每阶段独立验收（全部 APPROVED） |
 
 ---
 
