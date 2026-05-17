@@ -253,19 +253,16 @@ const resultsContent = $('results-content');
     return;
   }
 
-  // === Load pola 0.1.1 from PyPI-sourced wheel ===
+  // === Load pola 0.1.2 from PyPI-sourced wheel ===
   // pola's METADATA declares deps (pdfplumber→pypdfium2 C++, openpyxl,
-  // python-docx→lxml, xlrd) that are WASM-incompatible or unnecessary.
-  // Even micropip.install('pola', deps=False) fails because micropip
-  // still validates the wheel metadata and rejects pypdfium2 (no pure
-  // Python wheel for WASM). The most reliable approach is to download
+  // python-docx, xlrd) that are NOT WASM-compatible, so we download
   // the wheel from PyPI and use pyodide.loadPackage(), which bypasses
   // micropip entirely and loads the pure-Python package directly.
-  // The wheel (pola-0.1.1-py3-none-any.whl) was downloaded from:
-  // https://pypi.org/project/pola/0.1.1/
+  // The wheel (pola-0.1.2-py3-none-any.whl) was downloaded from:
+  // https://pypi.org/project/pola/0.1.2/
   updateStatus('loading', 'Installing pola from PyPI wheel…');
   try {
-    await pyodide.loadPackage('./pola-0.1.0-py3-none-any.whl');
+    await pyodide.loadPackage('./pola-0.1.2-py3-none-any.whl');
   } catch(e) {
     updateStatus('error', 'Failed to load pola wheel: ' + e.message);
     console.error(e);
