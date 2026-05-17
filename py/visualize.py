@@ -1,21 +1,23 @@
 """
 Matplotlib visualization generators for Pyodide environment.
 
-Uses the html5_canvas_backend to render plots directly to HTML5 Canvas
-elements in the browser. Each function returns a canvas element ID that
-can be inserted into the DOM by JavaScript.
+Returns PNG base64 data URLs instead of canvas element IDs, compatible with
+Pyodide v0.27.0's matplotlib-pyodide which uses the Agg-WASM backend
+(FigureCanvasAggWasm has no html5_canvas_element attribute).
 
-In the Pyodide environment, matplotlib must be configured AFTER pyodide
-loads the matplotlib package. Call ensure_backend() before any plotting.
+Each function returns a data:image/png;base64,... URL for direct use in <img> tags.
 """
 
-_canvas_counter = 0
+import io
+import base64
 
 
 def ensure_backend():
     """
     Configure matplotlib for Pyodide's HTML5 canvas backend.
     Safe to call multiple times (no-op after first call).
+    Note: in Pyodide v0.27.0, this backend redirects to the Agg-WASM backend,
+    which renders via savefig (not html5_canvas_element).
     """
     import matplotlib
 
@@ -23,16 +25,18 @@ def ensure_backend():
         matplotlib.use("module://matplotlib_pyodide.html5_canvas_backend")
 
 
-def _next_canvas_id():
-    """Generate a unique canvas element ID."""
-    global _canvas_counter
-    _canvas_counter += 1
-    return f"pola-plot-{_canvas_counter}"
+def _fig_to_data_url(fig, dpi=100):
+    """Convert a matplotlib figure to a PNG base64 data URL."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
+    buf.seek(0)
+    png_b64 = base64.b64encode(buf.read()).decode("ascii")
+    return f"data:image/png;base64,{png_b64}"
 
 
 def kde_plot(data_list, h, kernel="gaussian", n_points=1000):
     """
-    Generate KDE plot and render to an HTML5 canvas.
+    Generate KDE plot and return as PNG data URL.
 
     Parameters
     ----------
@@ -48,7 +52,8 @@ def kde_plot(data_list, h, kernel="gaussian", n_points=1000):
     Returns
     -------
     str
-        Canvas element ID (JS should append this canvas to the DOM).
+        PNG data URL for direct use in <img> tag.
+        Format: ``data:image/png;base64,...``
     """
     ensure_backend()
     import matplotlib.pyplot as plt
@@ -70,16 +75,14 @@ def kde_plot(data_list, h, kernel="gaussian", n_points=1000):
     ax.legend()
     fig.tight_layout()
 
-    canvas_id = _next_canvas_id()
-    fig.canvas.html5_canvas_element.id = canvas_id
-    fig.canvas.draw()
+    url = _fig_to_data_url(fig)
     plt.close(fig)
-    return canvas_id
+    return url
 
 
 def components_plot(data_list, h_crit, h_factor=0.85, kernel="gaussian", n_points=1000):
     """
-    Generate component decomposition plot, render to HTML5 canvas.
+    Generate component decomposition plot, return as PNG data URL.
 
     Parameters
     ----------
@@ -97,7 +100,7 @@ def components_plot(data_list, h_crit, h_factor=0.85, kernel="gaussian", n_point
     Returns
     -------
     str or None
-        Canvas element ID, or None if data is not bimodal.
+        PNG data URL, or None if data is not bimodal.
     """
     ensure_backend()
     import matplotlib.pyplot as plt
@@ -125,7 +128,9 @@ def components_plot(data_list, h_crit, h_factor=0.85, kernel="gaussian", n_point
 
     # Component Gaussians
     colors = ["#e67e22", "#27ae60"]
-    for i, (comp, color) in enumerate(zip([decomp.component1, decomp.component2], colors), 1):
+    for i, (comp, color) in enumerate(
+        zip([decomp.component1, decomp.component2], colors), 1
+    ):
         pdf = comp.weight * scipy_stats.norm.pdf(grid, comp.mean, comp.std)
         ax.plot(
             grid,
@@ -152,16 +157,14 @@ def components_plot(data_list, h_crit, h_factor=0.85, kernel="gaussian", n_point
     ax.legend(fontsize=9)
     fig.tight_layout()
 
-    canvas_id = _next_canvas_id()
-    fig.canvas.html5_canvas_element.id = canvas_id
-    fig.canvas.draw()
+    url = _fig_to_data_url(fig)
     plt.close(fig)
-    return canvas_id
+    return url
 
 
 def bandwidth_sweep_plot(data_list, h_crit, kernel="gaussian", n_points=1000):
     """
-    Generate 2x2 bandwidth sweep plot.
+    Generate 2x2 bandwidth sweep plot, return as PNG data URL.
 
     Shows KDE at four bandwidths: too small, Silverman, critical, too large.
 
@@ -179,7 +182,7 @@ def bandwidth_sweep_plot(data_list, h_crit, kernel="gaussian", n_points=1000):
     Returns
     -------
     str
-        Canvas element ID.
+        PNG data URL for direct use in <img> tag.
     """
     ensure_backend()
     import matplotlib.pyplot as plt
@@ -209,8 +212,6 @@ def bandwidth_sweep_plot(data_list, h_crit, kernel="gaussian", n_points=1000):
 
     fig.tight_layout()
 
-    canvas_id = _next_canvas_id()
-    fig.canvas.html5_canvas_element.id = canvas_id
-    fig.canvas.draw()
+    url = _fig_to_data_url(fig)
     plt.close(fig)
-    return canvas_id
+    return url

@@ -1,0 +1,27 @@
+name: Deploy pola web to GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [gh-pages]
+    paths:
+      - 'index.html'
+      - 'style.css'
+      - 'py/**'
+      - 'pola-*.whl'
+      - '.github/workflows/deploy-pages.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to qhwangantoneva/pola-web
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.DEPLOY_KEY }}
+          external_repository: qhwangantoneva/pola-web
+          publish_branch: gh-pages
+          publish_dir: ./
+          force_orphan: true

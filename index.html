@@ -626,6 +626,7 @@ async function ensureMatplotlib() {
   try {
     updateStatus('loading', 'Loading matplotlib (optional, ~8MB)…');
     await pyodide.loadPackage('matplotlib');
+    await pyodide.loadPackage('matplotlib-pyodide');
     state.hasMpl = true;
     updateStatus('ready', 'Ready');
     return true;
@@ -975,19 +976,19 @@ function renderResults(type, result, params, showPlots) {
         const hCrit = (result.h_crit !== undefined && result.h_crit !== null) ? result.h_crit : result.bandwidth;
         const h = hCrit;
 
-        // KDE plot
+        // KDE plot (returns PNG data URL)
         try {
-          const canvasId = pyodide.runPython(`
+          const dataUrl = pyodide.runPython(`
 from visualize import kde_plot
 kde_plot(${JSON.stringify(data)}, ${h}, "${params.kernel}")
 `);
-          // Append canvas after DOM rendering
+          // Append image after DOM rendering
           if (_renderVersion !== thisRender) return; // stale, abort
           const plotContainer = document.querySelector('.plot-container');
           if (plotContainer) {
             const div = document.createElement('div');
             div.className = 'plot-box';
-            div.innerHTML = '<canvas id="' + canvasId + '"></canvas>';
+            div.innerHTML = '<img src="' + dataUrl + '" style="width:100%;max-width:900px;height:auto;" alt="KDE plot">';
             plotContainer.appendChild(div);
           }
         } catch(e) {
@@ -1004,17 +1005,17 @@ kde_plot(${JSON.stringify(data)}, ${h}, "${params.kernel}")
         // Components plot (full analysis only)
         if (type === 'full' && result.components) {
           try {
-            const canvasId2 = pyodide.runPython(`
+            const dataUrl2 = pyodide.runPython(`
 from visualize import components_plot
 components_plot(${JSON.stringify(data)}, ${hCrit}, ${params.hFactor || 0.85}, "${params.kernel}")
 `);
-            if (canvasId2) {
+            if (dataUrl2) {
               if (_renderVersion !== thisRender) return; // stale, abort
               const plotContainer = document.querySelector('.plot-container');
               if (plotContainer) {
                 const div = document.createElement('div');
                 div.className = 'plot-box';
-                div.innerHTML = '<canvas id="' + canvasId2 + '"></canvas>';
+                div.innerHTML = '<img src="' + dataUrl2 + '" style="width:100%;max-width:900px;height:auto;" alt="Components plot">';
                 plotContainer.appendChild(div);
               }
             }
@@ -1032,7 +1033,7 @@ components_plot(${JSON.stringify(data)}, ${hCrit}, ${params.hFactor || 0.85}, "$
 
         // Bandwidth sweep
         try {
-          const canvasId3 = pyodide.runPython(`
+          const dataUrl3 = pyodide.runPython(`
 from visualize import bandwidth_sweep_plot
 bandwidth_sweep_plot(${JSON.stringify(data)}, ${hCrit}, "${params.kernel}")
 `);
@@ -1041,7 +1042,7 @@ bandwidth_sweep_plot(${JSON.stringify(data)}, ${hCrit}, "${params.kernel}")
           if (plotContainer) {
             const div = document.createElement('div');
             div.className = 'plot-box';
-            div.innerHTML = '<canvas id="' + canvasId3 + '"></canvas>';
+            div.innerHTML = '<img src="' + dataUrl3 + '" style="width:100%;max-width:900px;height:auto;" alt="Bandwidth sweep">';
             plotContainer.appendChild(div);
           }
         } catch(e) {
