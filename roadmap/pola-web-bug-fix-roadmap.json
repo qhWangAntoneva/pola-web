@@ -1,0 +1,297 @@
+{
+  "metadata": {
+    "project": "pola-web",
+    "version": "1.0.0",
+    "last_updated": "2026-05-17"
+  },
+  "phases": {
+    "phase_1_emergency": {
+      "priority": "CRITICAL",
+      "description": "用户可见的 UI 破坏 — 修复后应用基本可用",
+      "tasks": [
+        {
+          "id": "P1-1",
+          "description": "style.css: 给 .loading-overlay 添加 z-index: 200，使其在 Pyodide 初始化期间不被 header/tabs 遮挡",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "style.css:167"
+        },
+        {
+          "id": "P1-2",
+          "description": "index.html: renderResults 开头添加 `if (!result) return` 防止 result=null 时 TypeError",
+          "effort_minutes": 2,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:710-730"
+        },
+        {
+          "id": "P1-3",
+          "description": "analyze.py: _to_js() 中 np.complexfloating 返回 {real, imag} dict 而非 Python complex（不可 JSON 序列化）",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "analyze.py:47-48"
+        }
+      ]
+    },
+    "phase_2_high": {
+      "priority": "HIGH",
+      "description": "功能正确性 — 修复后结果可信",
+      "tasks": [
+        {
+          "id": "P2-1",
+          "description": "index.html: runBenchmark 的 pyodide.globals.delete('_bm_name') 移入 finally 块",
+          "effort_minutes": 2,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:1117-1123"
+        },
+        {
+          "id": "P2-2",
+          "description": "index.html: Dip 测试显示 'to 100 pts' → 'to 50 pts' 匹配实际代码",
+          "effort_minutes": 2,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:882"
+        },
+        {
+          "id": "P2-3",
+          "description": "visualize.py: kde_plot 开头添加 h is None or h <= 0 校验",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "visualize.py:37"
+        },
+        {
+          "id": "P2-4",
+          "description": "analyze.py: analyze_full 的 method 参数传递到内部的 detect_components，保持计算方法一致",
+          "effort_minutes": 10,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "analyze.py:133,146"
+        },
+        {
+          "id": "P2-5",
+          "description": "index.html: fetch('py/{name}.py') 添加 cache-busting query param，防止 CDN 缓存",
+          "effort_minutes": 2,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:301"
+        }
+      ]
+    },
+    "phase_3_medium": {
+      "priority": "MEDIUM",
+      "description": "鲁棒性 — 修复后不易崩",
+      "tasks": [
+        {
+          "id": "P3-1",
+          "description": "index.html: 所有 .toFixed() 调用前添加 null/undefined guard（5处：bootstrap CI, dip, bimodality, modes, benchmark）",
+          "effort_minutes": 10,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:795,863,911,923,942"
+        },
+        {
+          "id": "P3-2",
+          "description": "analyze.py: analyze_full/analyze_benchmark 的 except 从 ValueError 拓宽到 (ValueError, RuntimeError, TypeError)",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "analyze.py:161,290"
+        },
+        {
+          "id": "P3-3",
+          "description": "index.html: handleFile 添加 reader.onerror 事件处理器",
+          "effort_minutes": 3,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:351"
+        },
+        {
+          "id": "P3-4",
+          "description": "style.css: 定义 --color-bg-secondary 或在 index.html 中移除引用",
+          "effort_minutes": 3,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:881 / style.css"
+        },
+        {
+          "id": "P3-5",
+          "description": "analyze.py: _to_js 添加 set 类型的 JSON-serializable 转换",
+          "effort_minutes": 3,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "analyze.py:53"
+        },
+        {
+          "id": "P3-6",
+          "description": "index.html: CSV 表头检测改进 — 检查首行非纯数值 tokens 而非第2行第一值",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:360"
+        }
+      ]
+    },
+    "phase_4_low": {
+      "priority": "LOW",
+      "description": "代码质量与优化",
+      "tasks": [
+        {
+          "id": "P4-1",
+          "description": "visualize.py: ensure_backend 的 import matplotlib 移到模块级别",
+          "effort_minutes": 3,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "visualize.py:15-25"
+        },
+        {
+          "id": "P4-2",
+          "description": "index.html: Quick Sample 按钮从 inline onclick 迁移到 addEventListener",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:130-132"
+        },
+        {
+          "id": "P4-3",
+          "description": "index.html: Benchmark 算术添加可选链保护 (result.h_crit ?? 0) - (result.h_crit_expected ?? 0)",
+          "effort_minutes": 2,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:837"
+        },
+        {
+          "id": "P4-4",
+          "description": "index.html: 考虑用 pyodide.registerModule 替代 template string 注入模式",
+          "effort_minutes": 20,
+          "dependencies": [],
+          "status": "PENDING",
+          "file": "index.html:653-696"
+        }
+      ]
+    },
+    "phase_0_this_session": {
+      "priority": "COMPLETED",
+      "description": "2026-05-17 会话已完成的工作",
+      "tasks": [
+        {
+          "id": "DONE-1",
+          "description": "创建 HANDOVER.md 交接文档（含架构决策、文件清单、已知问题、后续方向）",
+          "effort_minutes": 15,
+          "dependencies": [],
+          "status": "DONE"
+        },
+        {
+          "id": "DONE-2",
+          "description": "本地浏览器验证 Show Plots — 发现3个 matplotlib plot 全部因 html5_canvas_element 缺失而失败",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "DONE"
+        },
+        {
+          "id": "DONE-3",
+          "description": "visualize.py: 重写3个 plot 函数，用 savefig+base64 替代 html5_canvas_element，返回 data:image/png;base64,... URL",
+          "effort_minutes": 15,
+          "dependencies": [],
+          "status": "DONE"
+        },
+        {
+          "id": "DONE-4",
+          "description": "index.html: 3个 plot block 从 <canvas> 改为 <img src=dataUrl> 显示",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "DONE"
+        },
+        {
+          "id": "DONE-5",
+          "description": "deploy-pages.yml: branches 从 [main] 改为 [gh-pages] — 仓库只有 gh-pages 分支",
+          "effort_minutes": 1,
+          "dependencies": [],
+          "status": "DONE"
+        },
+        {
+          "id": "DONE-6",
+          "description": "HANDOVER.md: 修正 ci.yml 不存在的错误描述",
+          "effort_minutes": 1,
+          "dependencies": [],
+          "status": "DONE"
+        },
+        {
+          "id": "DONE-7",
+          "description": "git commit + push: d2a6057 — 所有修复已推送到远程 gh-pages",
+          "effort_minutes": 5,
+          "dependencies": [],
+          "status": "DONE"
+        },
+        {
+          "id": "DONE-8",
+          "description": "深度 Bug Hunt: 4 角色 subagent team (Python/JS/WASM/Integration) 发现 21 个确认问题（3 CRITICAL, 5 HIGH, 6 MEDIUM, 7 LOW/INFO）",
+          "effort_minutes": 20,
+          "dependencies": [],
+          "status": "DONE"
+        },
+        {
+          "id": "DONE-9",
+          "description": "生成 roadmap 路线图 (pola-web-bug-fix-roadmap.json)，4个Phase + 已完成Phase",
+          "effort_minutes": 10,
+          "dependencies": [],
+          "status": "DONE"
+        }
+      ]
+    }
+  },
+  "milestones": {
+    "minimum_viable_release": [
+      "P1-1",
+      "P1-2",
+      "P1-3",
+      "P2-1",
+      "P2-2"
+    ],
+    "phase_2_complete": [
+      "P2-1",
+      "P2-2",
+      "P2-3",
+      "P2-4",
+      "P2-5"
+    ],
+    "phase_3_complete": [
+      "P3-1",
+      "P3-2",
+      "P3-3",
+      "P3-4",
+      "P3-5",
+      "P3-6"
+    ],
+    "all_fixes_complete": [
+      "P1-1",
+      "P1-2",
+      "P1-3",
+      "P2-1",
+      "P2-2",
+      "P2-3",
+      "P2-4",
+      "P2-5",
+      "P3-1",
+      "P3-2",
+      "P3-3",
+      "P3-4",
+      "P3-5",
+      "P3-6",
+      "P4-1",
+      "P4-2",
+      "P4-3",
+      "P4-4"
+    ]
+  },
+  "summary": {
+    "total_tasks": 18,
+    "total_estimated_effort_minutes": 98,
+    "remaining_effort_minutes": 63,
+    "completed_tasks": 9,
+    "completed_effort_minutes": 35
+  }
+}
