@@ -86,7 +86,7 @@
         </div>
         <div class="param-group">
           <label class="param-label" for="param-bootstrap">Bootstrap N</label>
-          <input class="param-input" id="param-bootstrap" type="number" value="99" min="10" max="999" step="10">
+          <input class="param-input" id="param-bootstrap" type="number" value="50" min="10" max="200" step="10">
         </div>
         <div class="param-group">
           <label class="param-label" for="param-prominence">Prominence</label>
@@ -98,7 +98,7 @@
         </div>
         <div class="param-group">
           <label class="param-label" for="param-nboot">N Boot (dip)</label>
-          <input class="param-input" id="param-nboot" type="number" value="999" min="99" max="9999" step="100">
+          <input class="param-input" id="param-nboot" type="number" value="99" min="10" max="999" step="10">
         </div>
       </div>
 
@@ -213,6 +213,7 @@ const app = {};  // Main application object
 // ---- State ----
 let pyodide = null;
 let pyready = false;
+let _renderVersion = 0;
 let currentData = null;
 const state = {};
 
@@ -347,14 +348,37 @@ fileInput.addEventListener('change', () => {
 
 async function handleFile(file) {
   if (!pyready) return;
-  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  const fileName = file.name;
+  const ext = '.' + fileName.split('.').pop().toLowerCase();
 
-  // Read file as bytes for Pyodide
   const reader = new FileReader();
   reader.onload = async (e) => {
-    const bytes = new Uint8Array(e.target.result);
-    // Write to Pyodide filesystem
+    const content = e.target.result;
+    const ext = fileName.substring(fileName.lastIndexOf('.'));
+
+    // 纯 JS CSV/TSV/TXT 解析
+    if (['.csv', '.tsv', '.txt'].includes(ext)) {
+      try {
+        const lines = content.trim().split('\n').filter(l => l.trim());
+        const hasHeader = lines.length > 1 && isNaN(lines[1].split(',')[0]);
+        const dataLines = hasHeader ? lines.slice(1) : lines;
+        const numbers = dataLines.flatMap(line =>
+          line.split(ext === '.tsv' ? '\t' : /[,\s]+/).map(Number).filter(v => !isNaN(v))
+        );
+        if (numbers.length >= 2) {
+          currentData = numbers;
+          dataInput.value = numbers.slice(0, 20).join(', ') + (numbers.length > 20 ? ', …' : '');
+          updateStatus('ready', `Loaded ${fileName} (${numbers.length} pts)`);
+          return; // 跳过 pola.io 回退
+        }
+      } catch(_) { /* fall through to pola.io */ }
+    }
+
+    // Fallback: convert text to bytes for Pyodide
+    const bytes = new TextEncoder().encode(content);
     const path = '/tmp/upload' + ext;
+    // Clean up previous temp file
+    try { pyodide.FS.unlink(path); } catch(_) {}
     pyodide.FS.writeFile(path, bytes);
 
     try {
@@ -375,9 +399,9 @@ except Exception as _io_err:
         currentData = _xProxy && _xProxy.length > 0 ? _xProxy.toJs() : null;
         if (currentData && currentData.length > 0) {
           dataInput.value = currentData.slice(0, 20).join(', ') + (currentData.length > 20 ? ', …' : '');
-          updateStatus('ready', `Loaded ${file.name} (${currentData.length} pts)`);
+          updateStatus('ready', `Loaded ${fileName} (${currentData.length} pts)`);
         } else {
-          showError('No numerical data found in ' + file.name);
+          showError('No numerical data found in ' + fileName);
         }
       } finally {
         if (_xProxy) _xProxy.destroy();
@@ -386,7 +410,7 @@ except Exception as _io_err:
       showError('Failed to parse file: ' + err.message);
     }
   };
-  reader.readAsArrayBuffer(file);
+  reader.readAsText(file);
 }
 
 // ---- Quick Samples ----
@@ -419,7 +443,13 @@ x = rng.normal(0, 1, 500)
 x.tolist()
 `;
     }
-    currentData = pyodide.runPython(code);
+    const _code = `import numpy as np; ${code.split('import numpy as np')[1]?.trim() || code}`;
+    const _pxProxy = pyodide.runPython(code.replace(/x\.tolist\(\)\s*$/, '_tmp = x.tolist(); del x; _tmp'));
+    try {
+      currentData = _pxProxy.toJs();
+    } finally {
+      _pxProxy.destroy();
+    }
     dataInput.value = currentData.slice(0, 20).join(', ') + (currentData.length > 20 ? ', …' : '');
     // Set default bootstrap values to 50 for WASM performance
     $('param-bootstrap').value = '50';
@@ -436,12 +466,19 @@ $('btn-analyze-cb').addEventListener('click', async () => {
   const data = getCurrentData();
   if (!data) return;
   state._running = true;
+  const btn = $('btn-analyze-cb');
+  btn.disabled = true;
+  btn.textContent = 'Running CB…';
+  updateStatus('loading', 'Running critical bandwidth analysis…');
   try {
     const kernel = $('param-kernel').value;
     const method = $('param-method').value;
     await runAnalysis('cb', {data, kernel, method});
   } finally {
     state._running = false;
+    btn.disabled = false;
+    btn.textContent = 'Analyze Critical Bandwidth';
+    updateStatus('ready', 'Ready');
   }
 });
 
@@ -450,6 +487,10 @@ $('btn-analyze-full').addEventListener('click', async () => {
   const data = getCurrentData();
   if (!data) return;
   state._running = true;
+  const btn = $('btn-analyze-full');
+  btn.disabled = true;
+  btn.textContent = 'Running Full…';
+  updateStatus('loading', 'Running full analysis…');
   try {
     const kernel = $('param-kernel').value;
     const method = $('param-method').value;
@@ -457,6 +498,9 @@ $('btn-analyze-full').addEventListener('click', async () => {
     await runAnalysis('full', {data, kernel, method, hFactor});
   } finally {
     state._running = false;
+    btn.disabled = false;
+    btn.textContent = 'Full Analysis';
+    updateStatus('ready', 'Ready');
   }
 });
 
@@ -465,12 +509,19 @@ $('btn-bootstrap').addEventListener('click', async () => {
   const data = getCurrentData();
   if (!data) return;
   state._running = true;
+  const btn = $('btn-bootstrap');
+  btn.disabled = true;
+  btn.textContent = 'Running Bootstrap…';
+  updateStatus('loading', 'Running bootstrap analysis…');
   try {
     const n = parseInt($('param-bootstrap').value) || 99;
     const kernel = $('param-kernel').value;
     await runAnalysis('bootstrap', {data, n, kernel});
   } finally {
     state._running = false;
+    btn.disabled = false;
+    btn.textContent = 'Bootstrap';
+    updateStatus('ready', 'Ready');
   }
 });
 
@@ -480,11 +531,18 @@ $('btn-dip-test').addEventListener('click', async () => {
   const data = getCurrentData();
   if (!data) return;
   state._running = true;
+  const btn = $('btn-dip-test');
+  btn.disabled = true;
+  btn.textContent = 'Running Dip Test…';
+  updateStatus('loading', 'Running dip test…');
   try {
     const nBoot = parseInt($('param-nboot').value) || 999;
     await runAnalysis('dip', {data, n_boot: nBoot});
   } finally {
     state._running = false;
+    btn.disabled = false;
+    btn.textContent = 'Dip Test';
+    updateStatus('ready', 'Ready');
   }
 });
 
@@ -494,12 +552,19 @@ $('btn-bimodality').addEventListener('click', async () => {
   const data = getCurrentData();
   if (!data) return;
   state._running = true;
+  const btn = $('btn-bimodality');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  updateStatus('loading', 'Running bimodality strength analysis…');
   try {
     const kernel = $('param-kernel').value;
     const hFactor = parseFloat($('param-hfactor').value) || 0.85;
     await runAnalysis('bimodality', {data, kernel, hFactor});
   } finally {
     state._running = false;
+    btn.disabled = false;
+    btn.textContent = 'Bimodality Strength';
+    updateStatus('ready', 'Ready');
   }
 });
 
@@ -509,6 +574,10 @@ $('btn-find-modes').addEventListener('click', async () => {
   const data = getCurrentData();
   if (!data) return;
   state._running = true;
+  const btn = $('btn-find-modes');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  updateStatus('loading', 'Running mode detection…');
   try {
     const kernel = $('param-kernel').value;
     const prominence = parseFloat($('param-prominence').value) || 0.01;
@@ -516,6 +585,9 @@ $('btn-find-modes').addEventListener('click', async () => {
     await runAnalysis('modes', {data, kernel, prominence, grid_points: gridPoints});
   } finally {
     state._running = false;
+    btn.disabled = false;
+    btn.textContent = 'Find Modes';
+    updateStatus('ready', 'Ready');
   }
 });
 
@@ -549,6 +621,12 @@ function showError(msg) {
 // ---- Matplotlib on-demand loader ----
 async function ensureMatplotlib() {
   if (state.hasMpl) return true;
+  if (state._loadingMpl) {
+    // Another call is already loading matplotlib, wait
+    while (state._loadingMpl) await new Promise(r => setTimeout(r, 100));
+    return state.hasMpl;
+  }
+  state._loadingMpl = true;
   try {
     updateStatus('loading', 'Loading matplotlib (optional, ~8MB)…');
     await pyodide.loadPackage('matplotlib');
@@ -560,6 +638,8 @@ async function ensureMatplotlib() {
     state.hasMpl = false;
     updateStatus('ready', 'Ready (plots disabled)');
     return false;
+  } finally {
+    state._loadingMpl = false;
   }
 }
 
@@ -631,6 +711,16 @@ json.dumps(find_modes_analysis(${JSON.stringify(params.data)}, None, ${params.gr
 
 // ---- Render Results ----
 function renderResults(type, result, params, showPlots) {
+  // Error前置检查：若结果中包含error字段，直接显示错误
+  if (result && result.error) {
+    resultsContent.innerHTML = `<div class="error-alert">${result.error}</div>`;
+    document.querySelector('[data-tab="results"]').click();
+    return;
+  }
+
+  // version token for stale IIFE protection
+  const thisRender = ++_renderVersion;
+
   const html = [];
 
   html.push('<div class="result-grid">');
@@ -706,7 +796,7 @@ function renderResults(type, result, params, showPlots) {
         <p><strong>Standard Error:</strong> ${result.standard_error.toFixed(4)}</p>
         <div>
           <div style="font-size:0.8rem;color:var(--color-text-secondary);margin-top:8px;">Distribution (first 20 values):</div>
-          <div class="distribution-preview">${result.distribution.slice(0, 20).join(', ')}${result.distribution.length > 20 ? ', …' : ''}</div>
+          <div class="distribution-preview">${result.distribution && Array.isArray(result.distribution) ? result.distribution.slice(0, 20).join(', ') + (result.distribution.length > 20 ? ', …' : '') : 'N/A'}</div>
         </div>
       </div>
     `);
@@ -801,6 +891,10 @@ function renderResults(type, result, params, showPlots) {
 
   // ===== Bimodality Strength Results =====
   if (type === 'bimodality') {
+    // 类型守卫：若 dip_ratio 不存在，跳过此区块
+    if (result.dip_ratio === undefined) {
+      html.push('<p>No bimodality data available.</p>');
+    } else {
     const strengthColors = {bimodal: 'var(--color-success)', weak: 'var(--color-warning)', unimodal: 'var(--color-danger)'};
     const color = strengthColors[result.strength] || 'var(--color-text-secondary)';
     html.push(`
@@ -832,10 +926,15 @@ function renderResults(type, result, params, showPlots) {
         </div>
       </div>
     `);
+    } // end else for dip_ratio guard
   }
 
   // ===== Find Modes Results =====
   if (type === 'modes') {
+    // 类型守卫：若 modes 字段缺失或非数组，显示占位信息
+    if (!result.modes || !Array.isArray(result.modes)) {
+      html.push('<p>No mode detection data available.</p>');
+    } else {
     html.push(`
       <div class="card">
         <div class="card-title">Modes Found (${result.n_modes})</div>
@@ -860,6 +959,7 @@ function renderResults(type, result, params, showPlots) {
         </table>
       </div>
     `);
+    } // end else for modes guard
   }
 
   // ===== Plots =====
@@ -872,7 +972,7 @@ function renderResults(type, result, params, showPlots) {
 
       if (hasMpl && type !== 'bootstrap' && type !== 'dip' && type !== 'bimodality') {
         const data = params.data;
-        const hCrit = result.h_crit || result.bandwidth;
+        const hCrit = (result.h_crit !== undefined && result.h_crit !== null) ? result.h_crit : result.bandwidth;
         const h = hCrit;
 
         // KDE plot
@@ -882,6 +982,7 @@ from visualize import kde_plot
 kde_plot(${JSON.stringify(data)}, ${h}, "${params.kernel}")
 `);
           // Append canvas after DOM rendering
+          if (_renderVersion !== thisRender) return; // stale, abort
           const plotContainer = document.querySelector('.plot-container');
           if (plotContainer) {
             const div = document.createElement('div');
@@ -891,6 +992,13 @@ kde_plot(${JSON.stringify(data)}, ${h}, "${params.kernel}")
           }
         } catch(e) {
           console.warn('KDE plot error:', e);
+          const pc = document.querySelector('.plot-container');
+          if (pc) {
+            const err = document.createElement('div');
+            err.className = 'error-alert';
+            err.textContent = 'KDE plot failed';
+            pc.appendChild(err);
+          }
         }
 
         // Components plot (full analysis only)
@@ -901,6 +1009,7 @@ from visualize import components_plot
 components_plot(${JSON.stringify(data)}, ${hCrit}, ${params.hFactor || 0.85}, "${params.kernel}")
 `);
             if (canvasId2) {
+              if (_renderVersion !== thisRender) return; // stale, abort
               const plotContainer = document.querySelector('.plot-container');
               if (plotContainer) {
                 const div = document.createElement('div');
@@ -911,6 +1020,13 @@ components_plot(${JSON.stringify(data)}, ${hCrit}, ${params.hFactor || 0.85}, "$
             }
           } catch(e) {
             console.warn('Components plot error:', e);
+            const pc = document.querySelector('.plot-container');
+            if (pc) {
+              const err = document.createElement('div');
+              err.className = 'error-alert';
+              err.textContent = 'Components plot failed';
+              pc.appendChild(err);
+            }
           }
         }
 
@@ -920,6 +1036,7 @@ components_plot(${JSON.stringify(data)}, ${hCrit}, ${params.hFactor || 0.85}, "$
 from visualize import bandwidth_sweep_plot
 bandwidth_sweep_plot(${JSON.stringify(data)}, ${hCrit}, "${params.kernel}")
 `);
+          if (_renderVersion !== thisRender) return; // stale, abort
           const plotContainer = document.querySelector('.plot-container');
           if (plotContainer) {
             const div = document.createElement('div');
@@ -929,6 +1046,13 @@ bandwidth_sweep_plot(${JSON.stringify(data)}, ${hCrit}, "${params.kernel}")
           }
         } catch(e) {
           console.warn('Sweep plot error:', e);
+          const pc = document.querySelector('.plot-container');
+          if (pc) {
+            const err = document.createElement('div');
+            err.className = 'error-alert';
+            err.textContent = 'Sweep plot failed';
+            pc.appendChild(err);
+          }
         }
       }
     })();
@@ -971,9 +1095,13 @@ json.dumps(list_benchmarks())
           <div class="benchmark-desc">${b.description}</div>
           <div class="benchmark-expected">Expected h_crit: ${b.h_crit_expected.toFixed(2)} ± ${b.h_crit_tolerance.toFixed(2)}</div>
         </div>
-        <button class="btn btn-secondary" onclick="app.runBenchmark('${b.name}')">Run</button>
+        <button class="btn btn-secondary" id="bench-btn-${b.name.replace(/[^a-zA-Z0-9]/g, '')}">Run</button>
       </div>
     `).join('');
+    benchmarks.forEach(b => {
+      const btn = document.getElementById('bench-btn-' + b.name.replace(/[^a-zA-Z0-9]/g, ''));
+      if (btn) btn.addEventListener('click', () => app.runBenchmark(b.name));
+    });
   } catch (e) {
     $('benchmark-list').innerHTML = '<p style="color:var(--color-text-secondary);">Error loading benchmarks.</p>';
     console.error(e);

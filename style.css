@@ -120,7 +120,7 @@ body {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   position: sticky;
-  top: 57px;
+  top: 48px;
   z-index: 99;
 }
 
@@ -390,9 +390,7 @@ body {
   color: var(--color-success);
 }
 
-.result-value.muted {
-  color: var(--color-text-secondary);
-}
+/* unused — kept for potential future use */
 
 /* --- Plot Container --- */
 .plot-container {

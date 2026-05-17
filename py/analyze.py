@@ -38,14 +38,20 @@ def _to_js(val):
     """Convert numpy types to Python native types for JSON serialization."""
     if isinstance(val, np.ndarray):
         return val.tolist()
-    if isinstance(val, np.floating):
+    elif isinstance(val, (np.floating,)):
         return float(val)
-    if isinstance(val, np.integer):
+    elif isinstance(val, (np.integer,)):
         return int(val)
-    if isinstance(val, np.bool_):
+    elif isinstance(val, (np.bool_,)):
         return bool(val)
-    return val
-
+    elif isinstance(val, (np.ndarray,)):
+        return _convert_result(val.tolist())
+    elif isinstance(val, (np.complexfloating,)):
+        return complex(val)
+    elif isinstance(val, (np.void,)):
+        return None
+    elif isinstance(val, (np.str_,)):
+        return str(val)
 
 def _convert_result(d):
     """Recursively convert all values in a dict to JSON-safe types."""
