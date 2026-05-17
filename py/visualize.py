@@ -11,6 +11,10 @@ Each function returns a data:image/png;base64,... URL for direct use in <img> ta
 import io
 import base64
 
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+
 
 def ensure_backend():
     """
@@ -19,7 +23,6 @@ def ensure_backend():
     Note: in Pyodide v0.27.0, this backend redirects to the Agg-WASM backend,
     which renders via savefig (not html5_canvas_element).
     """
-    import matplotlib
 
     if matplotlib.get_backend() != "module://matplotlib_pyodide.html5_canvas_backend":
         matplotlib.use("module://matplotlib_pyodide.html5_canvas_backend")
@@ -55,9 +58,10 @@ def kde_plot(data_list, h, kernel="gaussian", n_points=1000):
         PNG data URL for direct use in <img> tag.
         Format: ``data:image/png;base64,...``
     """
+    if h is None or h <= 0:
+        raise ValueError(f"Bandwidth h must be positive, got {h}")
+
     ensure_backend()
-    import matplotlib.pyplot as plt
-    import numpy as np
 
     from pola import bandwidth as bw
 
@@ -103,8 +107,7 @@ def components_plot(data_list, h_crit, h_factor=0.85, kernel="gaussian", n_point
         PNG data URL, or None if data is not bimodal.
     """
     ensure_backend()
-    import matplotlib.pyplot as plt
-    import numpy as np
+
     from scipy import stats as scipy_stats
 
     from pola import bandwidth as bw
@@ -185,8 +188,6 @@ def bandwidth_sweep_plot(data_list, h_crit, kernel="gaussian", n_points=1000):
         PNG data URL for direct use in <img> tag.
     """
     ensure_backend()
-    import matplotlib.pyplot as plt
-    import numpy as np
 
     from pola import bandwidth as bw
 

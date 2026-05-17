@@ -127,9 +127,9 @@
         Load a pre-built test dataset to try the tool:
       </div>
       <div class="btn-group">
-        <button class="btn btn-secondary" onclick="app.loadQuickSample('well_separated')">Well-Separated Bimodal</button>
-        <button class="btn btn-secondary" onclick="app.loadQuickSample('barely_separated')">Barely Separated</button>
-        <button class="btn btn-secondary" onclick="app.loadQuickSample('unimodal')">Unimodal (control)</button>
+        <button class="btn btn-secondary quick-sample-btn" data-sample="well_separated">Well-Separated Bimodal</button>
+        <button class="btn btn-secondary quick-sample-btn" data-sample="barely_separated">Barely Separated</button>
+        <button class="btn btn-secondary quick-sample-btn" data-sample="unimodal">Unimodal (control)</button>
       </div>
     </div>
   </div>
@@ -298,7 +298,7 @@ const resultsContent = $('results-content');
 async function loadPythonScript(name) {
   // Fetch the .py file and write it into Pyodide's virtual filesystem
   // Write to /home/pyodide/ (which IS in sys.path) instead of / (which is NOT)
-  const resp = await fetch(`py/${name}.py`);
+  const resp = await fetch(`py/${name}.py?t=${Date.now()}`);
   const code = await resp.text();
   pyodide.FS.writeFile(`/home/pyodide/${name}.py`, code);
 }
@@ -343,6 +343,13 @@ fileInput.addEventListener('change', () => {
   if (fileInput.files[0]) handleFile(fileInput.files[0]);
 });
 
+// ---- Quick Sample buttons ----
+document.querySelectorAll('.quick-sample-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    app.loadQuickSample(btn.dataset.sample);
+  });
+});
+
 async function handleFile(file) {
   if (!pyready) return;
   const fileName = file.name;
@@ -357,7 +364,9 @@ async function handleFile(file) {
     if (['.csv', '.tsv', '.txt'].includes(ext)) {
       try {
         const lines = content.trim().split('\n').filter(l => l.trim());
-        const hasHeader = lines.length > 1 && isNaN(lines[1].split(',')[0]);
+        // Improved header detection: check if first row has non-numeric tokens
+        const delimiter = content.includes('\t') ? '\t' : ',';
+        const hasHeader = lines.length > 1 && lines[0].split(delimiter).some(t => isNaN(t.trim()) && t.trim().length > 0);
         const dataLines = hasHeader ? lines.slice(1) : lines;
         const numbers = dataLines.flatMap(line =>
           line.split(ext === '.tsv' ? '\t' : /[,\s]+/).map(Number).filter(v => !isNaN(v))
@@ -406,6 +415,9 @@ except Exception as _io_err:
     } catch (err) {
       showError('Failed to parse file: ' + err.message);
     }
+  };
+  reader.onerror = (e) => {
+    showError('File read error: ' + (e.target?.error?.message || 'Unknown error'));
   };
   reader.readAsText(file);
 }
@@ -708,6 +720,7 @@ json.dumps(find_modes_analysis(${JSON.stringify(params.data)}, None, ${params.gr
 
 // ---- Render Results ----
 function renderResults(type, result, params, showPlots) {
+  if (!result) return;
   // Error前置检查：若结果中包含error字段，直接显示错误
   if (result && result.error) {
     resultsContent.innerHTML = '';
@@ -792,9 +805,9 @@ function renderResults(type, result, params, showPlots) {
   if (type === 'bootstrap') {
     html.push(`
       <div class="card">
-        <div class="card-title">Bootstrap Results (${result.n_resamples} resamples, ${(result.confidence_level * 100).toFixed(0)}% CI)</div>
-        <p><strong>CI:</strong> [${result.ci_lower.toFixed(4)}, ${result.ci_upper.toFixed(4)}]</p>
-        <p><strong>Standard Error:</strong> ${result.standard_error.toFixed(4)}</p>
+        <div class="card-title">Bootstrap Results (${result.n_resamples} resamples, ${((result.confidence_level ?? 0.95) * 100).toFixed(0)}% CI)</div>
+        <p><strong>CI:</strong> [${(result.ci_lower ?? 0).toFixed(4)}, ${(result.ci_upper ?? 0).toFixed(4)}]</p>
+        <p><strong>Standard Error:</strong> ${(result.standard_error ?? 0).toFixed(4)}</p>
         <div>
           <div style="font-size:0.8rem;color:var(--color-text-secondary);margin-top:8px;">Distribution (first 20 values):</div>
           <div class="distribution-preview">${result.distribution && Array.isArray(result.distribution) ? result.distribution.slice(0, 20).join(', ') + (result.distribution.length > 20 ? ', …' : '') : 'N/A'}</div>
@@ -834,7 +847,7 @@ function renderResults(type, result, params, showPlots) {
 
   // Benchmark comparison
   if (result.h_crit_expected !== undefined) {
-    const error = result.h_crit - result.h_crit_expected;
+    const error = (result.h_crit ?? 0) - (result.h_crit_expected ?? 0);
     const within = Math.abs(error) <= result.h_crit_tolerance;
     html.push(`
       <div class="card">
@@ -860,7 +873,7 @@ function renderResults(type, result, params, showPlots) {
         <div class="result-grid">
           <div class="result-card">
             <div class="result-label">DIP Statistic</div>
-            <div class="result-value">${result.dip.toFixed(6)}</div>
+            <div class="result-value">${(result.dip ?? 0).toFixed(6)}</div>
           </div>
           <div class="result-card">
             <div class="result-label">p-value</div>
@@ -879,7 +892,7 @@ function renderResults(type, result, params, showPlots) {
           </div>
         </div>
         <p style="font-size:0.8rem;color:var(--color-text-secondary);margin-top:8px;padding:6px 10px;background:var(--color-bg-secondary, #f5f5f5);border-radius:6px;">
-          ⚡ Browser (WASM) performance adaptation: ${result.subsampled ? 'subsampled from ' + result.n_original + ' to 100 pts, ' : ''}${result.capped ? 'bootstrap capped to ' + result.n_boot + '.' : 'bootstrap=' + result.n_boot}
+          ⚡ Browser (WASM) performance adaptation: ${result.subsampled ? 'subsampled from ' + result.n_original + ' to 50 pts, ' : ''}${result.capped ? 'bootstrap capped to ' + result.n_boot + '.' : 'bootstrap=' + result.n_boot}
         </p>
       </div>
     `);
@@ -904,11 +917,11 @@ function renderResults(type, result, params, showPlots) {
         <div class="result-grid">
           <div class="result-card">
             <div class="result-label">Dip Ratio</div>
-            <div class="result-value">${result.dip_ratio.toFixed(4)}</div>
+            <div class="result-value">${(result.dip_ratio ?? 0).toFixed(4)}</div>
           </div>
           <div class="result-card">
             <div class="result-label">h_crit Ratio</div>
-            <div class="result-value">${result.h_crit_ratio.toFixed(4)}</div>
+            <div class="result-value">${(result.h_crit_ratio ?? 0).toFixed(4)}</div>
           </div>
           <div class="result-card">
             <div class="result-label">N Modes</div>
@@ -920,9 +933,9 @@ function renderResults(type, result, params, showPlots) {
           </div>
         </div>
         <div style="margin-top:12px;">
-          <div style="font-size:0.8rem;color:var(--color-text-secondary);margin-bottom:4px;">Strength Score: ${result.strength_score.toFixed(3)}</div>
+          <div style="font-size:0.8rem;color:var(--color-text-secondary);margin-bottom:4px;">Strength Score: ${(result.strength_score ?? 0).toFixed(3)}</div>
           <div class="progress-bar" style="height:8px;background:var(--color-border);border-radius:4px;overflow:hidden;">
-            <div style="height:100%;width:${(result.strength_score * 100).toFixed(0)}%;background:${color};border-radius:4px;transition:width 0.3s;"></div>
+            <div style="height:100%;width:${((result.strength_score ?? 0) * 100).toFixed(0)}%;background:${color};border-radius:4px;transition:width 0.3s;"></div>
           </div>
         </div>
       </div>
@@ -1113,14 +1126,13 @@ app.runBenchmark = async function(name) {
   if (!pyready) return;
   if (state._running) return;
   state._running = true;
+  pyodide.globals.set('_bm_name', name);
   try {
-    pyodide.globals.set('_bm_name', name);
     const result = JSON.parse(pyodide.runPython(`
 import json
 from analyze import analyze_benchmark
 json.dumps(analyze_benchmark(_bm_name, 42, "gaussian", 0.85))
 `));
-    pyodide.globals.delete('_bm_name');
     // Also compute plots
     const data = result.x;
     delete result.x;
@@ -1133,6 +1145,7 @@ json.dumps(analyze_benchmark(_bm_name, 42, "gaussian", 0.85))
   } catch(e) {
     showError('Benchmark error: ' + e.message);
   } finally {
+    pyodide.globals.delete('_bm_name');
     state._running = false;
   }
 };

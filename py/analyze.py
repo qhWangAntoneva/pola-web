@@ -45,12 +45,14 @@ def _to_js(val):
     elif isinstance(val, (np.bool_,)):
         return bool(val)
     elif isinstance(val, (np.complexfloating,)):
-        return complex(val)
+        return {"real": val.real, "imag": val.imag}
     elif isinstance(val, (np.void,)):
         return None
     elif isinstance(val, (np.str_,)):
         return str(val)
-    return val  # pass through plain Python types (float, int, bool, str, None)
+    elif isinstance(val, set):
+        return list(val)
+    return val  # pass through plain Python types (float, int, bool, str, None, list)
 
 def _convert_result(d):
     """Recursively convert all values in a dict to JSON-safe types."""
@@ -143,7 +145,7 @@ def analyze_full(data_list, kernel="gaussian", h_factor=0.85, method="auto"):
     }
 
     try:
-        decomp = detect_components(x, h_factor=h_factor, kernel=kernel)
+        decomp = detect_components(x, h_factor=h_factor, kernel=kernel, method=method)
         result["dip_ratio"] = float(decomp.dip_ratio)
         result["components"] = {
             "component1": {
@@ -158,8 +160,8 @@ def analyze_full(data_list, kernel="gaussian", h_factor=0.85, method="auto"):
             },
         }
         result["separation_point"] = float(decomp.separation_point)
-    except ValueError:
-        pass  # not sufficiently bimodal
+    except (ValueError, RuntimeError, TypeError) as e:
+        pass  # not sufficiently bimodal (e.g., dip ratio too low)
 
     return result
 
@@ -233,7 +235,7 @@ def list_benchmarks():
     return cases
 
 
-def analyze_benchmark(name, seed=42, kernel="gaussian", h_factor=0.85):
+def analyze_benchmark(name, seed=42, kernel="gaussian", h_factor=0.85, method="auto"):
     """
     Generate and analyze a benchmark case.
 
@@ -256,7 +258,7 @@ def analyze_benchmark(name, seed=42, kernel="gaussian", h_factor=0.85):
     case = get_benchmark_case(name)
     x = case.generator(seed)
 
-    h_crit, success = critical_bandwidth(x, kernel=kernel)
+    h_crit, success = critical_bandwidth(x, kernel=kernel, method=method)
     trough = find_trough(x, h_crit * h_factor, kernel=kernel)
 
     result = {
@@ -273,7 +275,7 @@ def analyze_benchmark(name, seed=42, kernel="gaussian", h_factor=0.85):
     }
 
     try:
-        decomp = detect_components(x, h_factor=h_factor, kernel=kernel)
+        decomp = detect_components(x, h_factor=h_factor, kernel=kernel, method=method)
         result["dip_ratio"] = float(decomp.dip_ratio)
         result["components"] = {
             "component1": {
@@ -287,7 +289,7 @@ def analyze_benchmark(name, seed=42, kernel="gaussian", h_factor=0.85):
                 "weight": float(decomp.component2.weight),
             },
         }
-    except ValueError:
+    except (ValueError, RuntimeError, TypeError) as e:
         pass
 
     return result
