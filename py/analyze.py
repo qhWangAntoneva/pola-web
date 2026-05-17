@@ -44,14 +44,13 @@ def _to_js(val):
         return int(val)
     elif isinstance(val, (np.bool_,)):
         return bool(val)
-    elif isinstance(val, (np.ndarray,)):
-        return _convert_result(val.tolist())
     elif isinstance(val, (np.complexfloating,)):
         return complex(val)
     elif isinstance(val, (np.void,)):
         return None
     elif isinstance(val, (np.str_,)):
         return str(val)
+    return val  # pass through plain Python types (float, int, bool, str, None)
 
 def _convert_result(d):
     """Recursively convert all values in a dict to JSON-safe types."""
